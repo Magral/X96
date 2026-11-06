@@ -1,8 +1,8 @@
 {
-  "version": "0.4.0",
-  "versionCode": 4,
+  "version": "0.5.0",
+  "versionCode": 5,
   "applicationId": "ru.x96.local",
-  "apk_sha256": "791dd2492fc26561c98c94fc6968ff57e5ca992ce0186a9e740bb33b82b00e27",
+  "apk_sha256": "8bfd436c7b2de8fd4c26dd1b1ee4fb3717c829bd5c891c4a93d4d3109e55c792",
   "certificate_sha256": "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f",
   "same_signer_as_prior_versions": true,
   "date": "2026-11-06",
@@ -13,5 +13,6 @@
   "physical_device_tested": false,
   "runtime_dependencies": 0,
   "new_permissions": false,
-  "installer": "standard ADB streamed install, confirmed file only, no downgrade or signature bypass"
+  "installer": "standard ADB streamed install, confirmed file only, no downgrade or signature bypass",
+  "health_checks_passed": 34
 }

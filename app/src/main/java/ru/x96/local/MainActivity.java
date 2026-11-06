@@ -22,7 +22,8 @@ public final class MainActivity extends Activity {
     private boolean busy=false,recoveryOnly=false,destroyed=false;private int tab=0;private String currentIp="",query="";
     private final List<Button> navigation=new ArrayList<>();private final List<View> gated=new ArrayList<>();
     private final int[] scrollPositions=new int[4];private ScrollView pageScroll;private ListView packageList;private int listPosition=0,listTop=0,renderedTab=0;
-    private ProjectivyTools.Report piReport;
+    private ProjectivyTools.Report piReport,launchBaseline;
+    private String launchResult="";
     private static final int PICK_APK=41;
     private volatile ApkSelection selectedApk;
     private volatile boolean installing=false;
@@ -44,7 +45,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(14),dp(8),dp(14),dp(4));root.setBackgroundColor(BG);setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(dp(14),Math.max(dp(8),insets.getSystemWindowInsetTop()),dp(14),Math.max(dp(4),insets.getSystemWindowInsetBottom()));return insets;});
-        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.4.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.5.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(button("?",()->about(),false),new LinearLayout.LayoutParams(dp(44),dp(48)));root.addView(heading);
         LinearLayout connection=card(root);device=text("Подключение к приставке",16,TEXT);connection.addView(device);
         connectFields=new LinearLayout(this);connectFields.setOrientation(1);LinearLayout address=row();ip=edit("IP приставки");port=edit("Порт");
@@ -81,7 +82,7 @@ public final class MainActivity extends Activity {
             catch(Exception e){candidate.cancel();adb=null;repo=null;state=null;throw e;}
         },true);
     }
-    private void disconnect(){cancelledMessage=installing?"Соединение закрыто. Если APK уже был отправлен, установка могла завершиться на ТВ. Проверь установленную версию перед повтором.":"Соединение закрыто.";ApkSelection selection=selectedApk;selectedApk=null;if(selection!=null)selection.close();synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;piReport=null;currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
+    private void disconnect(){cancelledMessage=installing?"Соединение закрыто. Если APK уже был отправлен, установка могла завершиться на ТВ. Проверь установленную версию перед повтором.":"Соединение закрыто.";ApkSelection selection=selectedApk;selectedApk=null;if(selection!=null)selection.close();synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;piReport=null;launchBaseline=null;launchResult="";currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
     private void run(String message,Job job){run(message,job,false);}
     private void run(String message,Job job,boolean connecting){run(message,job,connecting,null);}
     private void run(String message,Job job,boolean connecting,Runnable onSuccess){
@@ -118,6 +119,7 @@ public final class MainActivity extends Activity {
     private void options(LinearLayout content){
         TextView lead=text("Настрой приставку под себя",20,TEXT);lead.setTypeface(null,Typeface.BOLD);content.addView(lead);content.addView(text("Каждый переключатель сохраняет прежние значения. Выключение возвращает их обратно.",13,MUTED));
         projectivyCard(content);
+        launchCheck(content);
         for(Option o:Option.values()){
             LinearLayout c=card(content);LinearLayout heading=row();TextView label=text(o.title,17,TEXT);heading.addView(label,new LinearLayout.LayoutParams(0,-2,1));
             Option.Status s=state==null?null:state.options.get(o);Switch toggle=new Switch(this);toggle.setContentDescription(o.title);toggle.setChecked(s!=null&&(s.saved||s.active));
@@ -167,7 +169,16 @@ public final class MainActivity extends Activity {
         String[] labels={"Настройки приставки","Wi-Fi и сеть","Память и накопители","Экран и разрешение","Звук","Специальные возможности","Приложения","Дата и время"};for(int i=0;i<labels.length;i++){final int kind=i;settings.addView(button(labels[i],()->run("Открываю настройки на телевизоре…",()->repo.openSettings(kind)),true));}
     }
     private void addKeys(LinearLayout parent,String[] labels,int[] codes){LinearLayout r=row();for(int i=0;i<labels.length;i++){final int code=codes[i];r.addView(button(labels[i],()->run("Отправляю кнопку…",()->repo.remote(code)),true),weighted());}parent.addView(r);}
-    private void refreshPi() throws Exception {ProjectivyTools.Report previous=piReport;piReport=repo.diagnoseProjectivy(false);if(previous!=null&&previous.pid.matches("[0-9]+")&&piReport.pid.matches("[0-9]+"))piReport.advice+="\nМежду замерами PID "+(previous.pid.equals(piReport.pid)?"не изменился. Повторный логотип возможен без смены процесса.":"изменился: процесс Projectivy был заменён.");}
+    private void refreshPi() throws Exception {piReport=repo.diagnoseProjectivy(false);piReport.comparison=launchResult;}
+    private void launchCheck(LinearLayout content){
+        LinearLayout c=card(content);c.addView(text("Проверка первого нажатия пульта",18,TEXT));
+        c.addView(text("После загрузки приставки, не трогая пульт, сохрани первый замер с телефона. Затем нажми одну кнопку пульта и выполни второй замер. Во время проверки не меняй настройки и не обновляй лаунчер.",13,MUTED));
+        c.addView(text(launchResult.isEmpty()?(launchBaseline==null?"Первый замер ещё не сохранён.":"Первый замер: "+launchBaseline.measuredAt+". Теперь нажми кнопку пульта."):launchResult,13,ACCENT));
+        c.addView(button(launchBaseline==null?"1. Сохранить замер до нажатия":"1. Начать новый замер",()->run("Сохраняю первый замер…",()->{refreshPi();launchBaseline=piReport;launchResult="";piReport.comparison="";}),true));
+        Button compare=button("2. Сравнить после нажатия",()->run("Сравниваю запуск…",()->{refreshPi();launchResult=ProjectivyTools.compare(launchBaseline,piReport);piReport.comparison=launchResult;}),false);
+        compare.setEnabled(!busy&&state!=null&&launchBaseline!=null);c.addView(compare);
+        c.addView(text("Замеры только читают состояние. Сравнение сбрасывается при отключении; результат входит в копируемый отчёт на вкладке «Приставка».",12,MUTED));
+    }
     private void projectivyCard(LinearLayout content){
         LinearLayout c=card(content);c.addView(text("Projectivy: запуск без повторной заставки",18,TEXT));
         c.addView(text(piReport==null?"Проверим версию, системный домашний экран и службу перехвата. После перезагрузки можно сравнить процесс до и после первого нажатия.":"Версия: "+piReport.version+"\n"+piReport.advice,13,MUTED));
@@ -184,6 +195,7 @@ public final class MainActivity extends Activity {
     private Button rootButton(String label,Runnable action){Button b=button(label,action,false);b.setEnabled(!busy&&state!=null&&piReport!=null&&piReport.rootReady);return b;}
     private void devicePage(LinearLayout content){
         content.addView(text("Приставка и root",21,TEXT));content.addView(text("Действия выполняются только по нажатию. Неизвестные возможности прошивки не включаются автоматически.",13,MUTED));
+        LinearLayout health=card(content);health.addView(text("Память и температура",18,TEXT));health.addView(text(piReport==null?"Нажми «Обновить диагностику», чтобы получить замер.":"Замер: "+piReport.measuredAt+"\n"+piReport.health.text()+"\nТемпература: "+piReport.temperature+"\nПоказан доступный датчик прошивки; это не обязательно температура процессора.",14,MUTED));
         LinearLayout info=card(content);info.addView(text("Прошивка и состояние",18,TEXT));
         info.addView(text(piReport==null?"Считаем сведения о плате, сборке Android, Projectivy и памяти. Серийный номер, MAC, IP и учётные записи в отчёт не добавляются.":piReport.text(),13,MUTED));
         info.addView(button("Обновить диагностику",()->run("Считываю сведения о приставке…",()->refreshPi()),true));

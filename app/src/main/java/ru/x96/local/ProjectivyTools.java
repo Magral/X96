@@ -101,10 +101,30 @@ final class ProjectivyTools {
         }
     }
     static final class Report {
+        final String measuredAt=java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,java.text.DateFormat.MEDIUM).format(new java.util.Date());
+        DeviceHealth health=DeviceHealth.parse("");
+        String identity="",comparison="";
         String version="не определена",firmware="",root="не проверен",home="",advice="",pid="не запущен",memory="",build="",board="",wifi="не определён",temperature="недоступна";
         boolean intercept,homeTask,rootReady,interceptSaved,prioritySaved,oldVersion;
         int sdk;
-        String text(){return "X96 Локально 0.4.0\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+memory+"\n\n"+advice;}
+        String text(){return "X96 Локально 0.5.0\nЗамер: "+measuredAt+"\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+health.text()+"\n"+memory+"\n\n"+advice+(comparison.isEmpty()?"":"\n\nПроверка первого нажатия:\n"+comparison);}
+    }
+    static String processIdentity(String pid,String raw){
+        if(!pid.matches("[1-9][0-9]{0,7}"))return "";
+        String[] lines=raw.trim().split("\\r?\\n");if(lines.length!=2||!lines[0].matches("[a-fA-F0-9-]{36}")||!lines[1].startsWith(pid+" ("))return "";
+        int end=lines[1].lastIndexOf(')');if(end<0)return "";
+        String[] f=lines[1].substring(end+1).trim().split("\\s+");
+        return f.length>=20&&f[19].matches("[0-9]{1,20}")?lines[0]+"|"+pid+"|"+f[19]:"";
+    }
+    static String compare(Report before,Report after){
+        if(before==null)return "Сначала сохрани замер до нажатия.";
+        String outcome;
+        if(before.identity.isEmpty()||after.identity.isEmpty())outcome="Не удалось надёжно сравнить процессы: прошивка не предоставила все сведения. Совпадения PID недостаточно.";
+        else if(!before.identity.split("\\|")[0].equals(after.identity.split("\\|")[0]))outcome="Между замерами приставка перезагрузилась. Повтори проверку в пределах одной загрузки.";
+        else if(before.identity.equals(after.identity))outcome="Процесс Projectivy остался тем же. Повторный логотип возможен при пересоздании экрана или смене HOME-задачи; это не подтверждение выгрузки процесса.";
+        else outcome="Процесс Projectivy сменился. Эти замеры не показывают причину: это может быть завершение, сбой или обновление приложения.";
+        if(!before.version.equals(after.version)||!before.home.equals(after.home)||before.intercept!=after.intercept)outcome+="\nМежду замерами изменились версия или настройки запуска. Для проверки пульта повтори замеры без изменения настроек.";
+        return outcome+"\n"+after.health.difference(before.health)+"\nТемпература до: "+before.temperature+"; после: "+after.temperature+". Датчик не обязательно относится к процессору.";
     }
     private String optional(String c){try{return shell.shell(c);}catch(Exception e){return "";}}
     static boolean oldVersion(String v){Matcher m=Pattern.compile("^(\\d{1,3})\\.(\\d{1,3})(?:\\D|$)").matcher(v);if(!m.find())return false;int major=Integer.parseInt(m.group(1)),minor=Integer.parseInt(m.group(2));return major<4||major==4&&minor<73;}
@@ -117,7 +137,8 @@ final class ProjectivyTools {
         try{for(String c:readServices())if(Policy.packageOf(c).equals(PKG))r.intercept=true;}catch(Exception ignored){}
         r.homeTask=optional("dumpsys activity activities | grep -F 'type=home' | grep -F '"+PKG+"' || true").contains(PKG);
         String pid=optional("pidof "+PKG+" || true").trim();if(pid.matches("[1-9][0-9]{0,7}"))r.pid=pid;
-        String memory=optional("grep -E '^(MemTotal|MemAvailable):' /proc/meminfo; df -k /data | tail -n 1");r.memory=memory.length()<1000?memory:"";
+        if(pid.matches("[1-9][0-9]{0,7}"))r.identity=processIdentity(pid,optional("cat /proc/sys/kernel/random/boot_id; cat /proc/"+pid+"/stat"));
+        String memory=optional("grep -E '^(MemTotal|MemAvailable):' /proc/meminfo; df -k /data | tail -n 1");r.health=DeviceHealth.parse(memory);
         String wifi=optional("ls /sys/module | grep -E '^(dhd|bcmdhd|brcmfmac|8189|8723|8822|8852|ssv|uwe|aic|rtk)' || true");if(!wifi.trim().isEmpty())r.wifi=safe(wifi);
         String[] thermal=optional("cat /sys/class/thermal/thermal_zone0/type 2>/dev/null; cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null").split("\\r?\\n");
         if(thermal.length==2&&thermal[1].trim().matches("-?[0-9]{1,6}")){double n=Double.parseDouble(thermal[1].trim());if(Math.abs(n)>200)n/=1000;if(n>=-40&&n<=150)r.temperature=safe(thermal[0])+": "+String.format(Locale.ROOT,"%.1f °C",n);}
