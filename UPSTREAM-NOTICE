@@ -1,0 +1,98 @@
+Tellyscope
+Copyright (C) 2026 Tellyscope contributors
+
+Tellyscope is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License version 3 (see LICENSE).
+
+This product includes or is derived from the following third-party work.
+
+--------------------------------------------------------------------------------
+Kadb — https://github.com/flyfishxu/Kadb
+License: Apache License 2.0
+Used as a library: the ADB protocol client (connect, pair, shell).
+Kadb is itself based on Dadb (https://github.com/mobile-dev-inc/dadb, Apache-2.0).
+
+--------------------------------------------------------------------------------
+spake2-java — https://github.com/Flyfish233/spake2-java
+License: GNU General Public License v3.0
+Used as a library (via Kadb): SPAKE2 key exchange for Android 11+ wireless
+debugging pairing.
+
+--------------------------------------------------------------------------------
+Material Icons — https://github.com/google/material-design-icons
+License: Apache License 2.0
+The TV and HDMI (streaming stick) device icons use the path data of the
+"tv" and "settings_input_hdmi" icons, the Debloat button that of
+"cleaning_services", the off-Wi-Fi screen that of "wifi_off", and the
+Apps, Files and Tweaks tabs those of "apps", "folder" and "tune", the
+Upload files button that of "upload", the empty Movies folder that of
+"movie", the links in Settings that of "open_in_new", Settings' What's new
+row that of the Material Symbols "new_releases", What's new's Update card
+and can't-load line those of "system_update" and "cloud_off", and the Remote's
+restart, waiting and can't-reach icons and the Remote buttons sheet's drag
+handle those of "restart_alt", "hourglass_top", "link_off" and
+"drag_handle".
+Report a problem, Help add this TV and Add the rest use those of
+"bug_report", "add_to_queue" and "content_copy".
+The access warning, Who has access and Remove all other access use those
+of "shield", "gpp_good", "gpp_maybe", "lock_reset", "smartphone", "lan",
+"laptop", "desktop_windows" and "help_outline"; the Connected devices card
+those of "bluetooth", "headphones", "keyboard", "mouse", "sports_esports",
+"usb", "speaker", "settings_input_hdmi" and "videocam". The logged-out page and the
+logged-out badge on a TV's chip use that of "logout"; the dialog that asks
+about a launcher's accessibility service that of "accessibility_new".
+The install-a-launcher flow uses those of "download", "error_outline",
+"info" (outlined) and "code".
+
+--------------------------------------------------------------------------------
+Store badges in docs/badges/ (README only, not in the app)
+- "Get it on GitHub": https://github.com/Kunzisoft/Github-badge, after the
+  F-Droid badge by @flocke; License: CC BY-SA 3.0.
+- "Get it on Obtainium": https://github.com/ImranR98/Obtainium; License: GNU
+  General Public License v3.0.
+- "Get on Orion Store": https://github.com/RookieEnough/Orion-Store; License:
+  GNU General Public License v3.0.
+Each is trimmed to its edges and scaled to the same height.
+
+--------------------------------------------------------------------------------
+cleanyourtv — https://github.com/Gathin23/cleanyourtv
+License: MIT, Copyright (c) 2026 Gathin
+Debloat package lists are adapted from this project.
+
+--------------------------------------------------------------------------------
+The MIT License text, as it applies to cleanyourtv:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+Streaming service logos (downloaded from tellyscope-devices, not in this repo)
+The names and logos of the services in data/streaming.json are trademarks of
+their owners. They are not covered by the GNU General Public License: they are
+not part of Tellyscope's source, and no licence to them is given. Tellyscope
+shows them only to name the app a Remote button opens, and isn't affiliated
+with or endorsed by any of their owners. They are drawn from Wikimedia
+Commons, Simple Icons (https://simpleicons.org) and the services' own
+projects; tellyscope-devices' logos/SOURCES.md lists each one's source and
+licence.
+
+--------------------------------------------------------------------------------
+App icon in app/src/test/resources/dock-icons/ (screenshot tests only, not in
+the app)
+The YouTube name and logo belong to its owner. It is shown only to illustrate
+the Apps list in a screenshot.

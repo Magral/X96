@@ -1,0 +1,14 @@
+.gradle/
+.toolcache/
+build/
+app/build/
+local.properties
+*.jks
+*.p12
+*.pfx
+signing.json
+*signing-private*
+*.keystore
+*.apk
+*.idsig
+*.class

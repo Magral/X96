@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "versionCode": 2,
+  "applicationId": "ru.x96.local",
+  "apk_sha256": "db47fe0380a9b6f31ea275359ff54c477f871ae258420f42515d2b60d4801302",
+  "certificate_sha256": [
+    "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f"
+  ],
+  "same_signer_as_0_1_0": true,
+  "date": "2026-11-06",
+  "core_checks_passed": 78,
+  "repository_checks_passed": 59,
+  "signature_verified": [
+    "v2",
+    "v3"
+  ],
+  "external_urls_in_dex": 0,
+  "runtime_dependencies": 0,
+  "services": 0,
+  "permissions": [
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE"
+  ],
+  "physical_device_tested": false,
+  "prior_0_1_0_connection_user_confirmed": true
+}

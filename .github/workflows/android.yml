@@ -1,0 +1,98 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tests and unsigned APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .toolcache
+          key: x96-linux-sdk35-ecj340-${{ hashFiles('tools/build.py') }}
+      - name: Test and compile
+        run: python3 tools/build.py
+      - name: Record build result
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, pathlib
+          apk = next(pathlib.Path('build').glob('X96-local-*-unsigned.apk'))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as s:
+              s.write('## Source build passed\n\nTests and Android compilation succeeded.\n\n')
+              s.write('This artifact is **unsigned** and cannot update the installed app. Use the signed job after configuring signing.\n\n')
+              s.write('SHA-256: `' + hashlib.sha256(apk.read_bytes()).hexdigest() + '`\n')
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: X96-unsigned-${{ github.run_number }}
+          path: build/X96-local-*-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  signed:
+    name: Installable APK (requires signing secret)
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check signing configuration
+        id: signing
+        env:
+          X96_SIGNING_BUNDLE: ${{ secrets.X96_SIGNING_BUNDLE }}
+        run: |
+          if [ -n "$X96_SIGNING_BUNDLE" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo '## Signing is not configured' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Source compilation is available in the unsigned job. Add X96_SIGNING_BUNDLE using tools/setup-signing.ps1 to build installable updates with the existing key.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          path: .toolcache
+          key: x96-linux-sdk35-ecj340-${{ hashFiles('tools/build.py') }}
+      - name: Build and verify signed APK
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          X96_SIGNING_BUNDLE: ${{ secrets.X96_SIGNING_BUNDLE }}
+        run: python3 tools/ci_sign.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.signing.outputs.ready == 'true'
+        with:
+          name: X96-installable-${{ github.run_number }}
+          path: |
+            build/X96-local-*.apk
+            !build/*-unsigned.apk
+          if-no-files-found: error
+          retention-days: 30
