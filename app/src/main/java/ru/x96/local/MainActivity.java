@@ -99,10 +99,11 @@ public final class MainActivity extends Activity {
                 else if(result!=null){if(recovery!=null){state=recovery;}else{if(adb!=null)adb.cancel();adb=null;repo=null;state=null;}error(result);}
                 else status.setText(state==null?"Отключено.":"Готово · соединение по Wi-Fi");render();if(result==null&&token==generation&&onSuccess!=null)onSuccess.run();});});
     }
-    private void confirm(String title,String message,Job job){
+    private void confirm(String title,String message,Job job){confirm(title,message,job,null);}
+    private void confirm(String title,String message,Job job,Runnable onSuccess){
         if(busy)return;if(repo==null){status.setText("Сначала подключи приставку.");return;}
         SessionAction action=new SessionAction(repo,generation);
-        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setNegativeButton("Отмена",null).setPositiveButton("Продолжить",(d,w)->{if(accept(action))run("Применяю и проверяю…",job);}).show();
+        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setNegativeButton("Отмена",null).setPositiveButton("Продолжить",(d,w)->{if(accept(action))run("Применяю и проверяю…",job,false,onSuccess);}).show();
     }
     private boolean accept(SessionAction action){
         if(action!=null&&action.take(repo,generation,busy,destroyed))return true;
@@ -165,7 +166,7 @@ public final class MainActivity extends Activity {
         }
         if(shown==0)content.addView(text(optionFilter==2?"Нет переключателей, изменённых этим приложением.":"Доступных настроек пока нет. Можно выбрать «Все настройки» и посмотреть пояснения.",14,MUTED));
         LinearLayout storage=card(content);storage.addView(text("Освободить место",17,TEXT));storage.addView(text("Просит Android освободить место за счёт кеша, если свободно меньше 1 ГБ. Аккаунты, настройки и личные данные приложений сохраняются. Фактический объём очистки определяет Android.",13,MUTED));
-        storage.addView(button("Очистить кеш при нехватке места",()->confirm("Освободить место?","Android может удалить временные файлы. Приложения загрузят их заново при необходимости. Если места достаточно, очистка может ничего не изменить.",()->state=repo.trimCache()),true));
+        storage.addView(button("Очистить кеш при нехватке места",()->confirm("Освободить место?","Android может удалить временные файлы. Приложения загрузят их заново при необходимости. Если места достаточно, очистка может ничего не изменить.",()->state=repo.trimCache(),()->{piReport=null;render();new AlertDialog.Builder(this).setTitle("Результат очистки").setMessage(repo.cacheResult).setPositiveButton("Понятно",null).show();}),true));
         content.addView(text("Если настройка не поддерживается прошивкой, она недоступна. Изменения не применяются автоматически.",12,MUTED));
     }
     private void applications(){

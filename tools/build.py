@@ -60,6 +60,7 @@ def main():
     run('java', '-cp', tests, 'ru.x96.local.SnapshotTests')
     run('java', '-cp', tests, 'ru.x96.local.SessionTests')
     run('java', '-cp', tests, 'ru.x96.local.HardwareTests')
+    run('java', '-cp', tests, 'ru.x96.local.CacheTests')
     if args.test_only: return
     classes, dex = out/'classes', out/'dex'
     classes.mkdir(); dex.mkdir()

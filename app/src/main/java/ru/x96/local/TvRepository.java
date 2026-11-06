@@ -11,6 +11,7 @@ public final class TvRepository {
     private final TvShell adb;
     private final RecoveryStore journal;
     private String identity="";
+    public String cacheResult="";
     private ProjectivyTools piTools;
     public static final class State {
         public String model,android,uid,home;
@@ -173,7 +174,15 @@ public final class TvRepository {
         String action;switch(kind){case 0:action="android.settings.SETTINGS";break;case 1:action="android.settings.WIFI_SETTINGS";break;case 2:action="android.settings.INTERNAL_STORAGE_SETTINGS";break;case 3:action="android.settings.DISPLAY_SETTINGS";break;case 4:action="android.settings.SOUND_SETTINGS";break;case 5:action="android.settings.ACCESSIBILITY_SETTINGS";break;case 6:action="android.settings.APPLICATION_SETTINGS";break;case 7:action="android.settings.DATE_SETTINGS";break;default:throw new IOException("Раздел недоступен");}
         run("am start -W -a "+action);
     }
-    public State trimCache() throws Exception {refresh();run("pm trim-caches 1G");return refresh();}
+    public State trimCache() throws Exception {
+        cacheResult="";State before=refresh();long free=DeviceHealth.parse(run("df -k /data | tail -n 1")).dataAvailable;
+        if(free<0)throw new IOException("Не удалось проверить свободное место. Очистка не запущена.");
+        if(free>=1048576){cacheResult="Очистка не требуется: свободно "+DeviceHealth.size(free)+". Порог — 1 ГиБ.";return before;}
+        run("pm trim-caches 1G");State after=refresh();long now=-1;
+        try{now=DeviceHealth.parse(run("df -k /data | tail -n 1")).dataAvailable;}catch(Exception ignored){}
+        cacheResult="Свободно до: "+DeviceHealth.size(free)+". После: "+DeviceHealth.size(now)+". "+(now<0?"Android завершил команду, но повторный замер недоступен.":now<=free?"Свободного места не стало больше. Android мог не найти подходящий кеш.":"Изменение свободного места включает также работу других приложений.");
+        return after;
+    }
     public static boolean visible(State s,String p,boolean mine){
         if(s.owned.contains(p))return true;
         if(mine||s.disabled.contains(p))return false;
