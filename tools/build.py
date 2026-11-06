@@ -48,7 +48,7 @@ def main():
     src = ROOT / 'app/src/main/java/ru/x96/local'
     tests = out / 'test-classes'
     tests.mkdir()
-    core = ['Policy', 'AdbProtocol', 'AdbClient', 'TvShell', 'RecoveryStore', 'TvRepository', 'Option', 'ProjectivyTools', 'ApkInstall', 'DeviceHealth', 'AppOptimization', 'TvSnapshot']
+    core = ['Policy', 'AdbProtocol', 'AdbClient', 'TvShell', 'RecoveryStore', 'TvRepository', 'Option', 'ProjectivyTools', 'ApkInstall', 'DeviceHealth', 'AppOptimization', 'TvSnapshot', 'SessionAction']
     run('java', '-jar', cache/'ecj.jar', '-1.8', '-proc:none', '-warn:none', '-d', tests,
         *[src/(n+'.java') for n in core], *sorted((ROOT/'tests').glob('*.java')))
     run('java', '-cp', tests, 'ru.x96.local.CoreTests')
@@ -58,6 +58,7 @@ def main():
     run('java', '-cp', tests, 'ru.x96.local.HealthTests')
     run('java', '-cp', tests, 'ru.x96.local.OptimizationTests')
     run('java', '-cp', tests, 'ru.x96.local.SnapshotTests')
+    run('java', '-cp', tests, 'ru.x96.local.SessionTests')
     if args.test_only: return
     classes, dex = out/'classes', out/'dex'
     classes.mkdir(); dex.mkdir()

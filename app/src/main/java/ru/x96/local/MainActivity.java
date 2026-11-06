@@ -27,6 +27,7 @@ public final class MainActivity extends Activity {
     private String launchResult="";
     private final Map<String,Long> launchTimes=new HashMap<>();
     private static final int PICK_APK=41;
+    private SessionAction pendingApkPicker;
     private volatile ApkSelection selectedApk;
     private volatile boolean installing=false;
     private String cancelledMessage="Соединение закрыто.";
@@ -48,7 +49,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(14),dp(8),dp(14),dp(4));root.setBackgroundColor(BG);setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(dp(14),Math.max(dp(8),insets.getSystemWindowInsetTop()),dp(14),Math.max(dp(4),insets.getSystemWindowInsetBottom()));return insets;});
-        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.8.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · "+appVersion(),12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(button("?",()->about(),false),new LinearLayout.LayoutParams(dp(44),dp(48)));root.addView(heading);
         LinearLayout connection=card(root);device=text("Подключение к приставке",16,TEXT);connection.addView(device);
         connectFields=new LinearLayout(this);connectFields.setOrientation(1);LinearLayout address=row();ip=edit("IP приставки");port=edit("Порт");
@@ -100,7 +101,20 @@ public final class MainActivity extends Activity {
     }
     private void confirm(String title,String message,Job job){
         if(busy)return;if(repo==null){status.setText("Сначала подключи приставку.");return;}
-        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setNegativeButton("Отмена",null).setPositiveButton("Продолжить",(d,w)->run("Применяю и проверяю…",job)).show();
+        SessionAction action=new SessionAction(repo,generation);
+        new AlertDialog.Builder(this).setTitle(title).setMessage(message).setNegativeButton("Отмена",null).setPositiveButton("Продолжить",(d,w)->{if(accept(action))run("Применяю и проверяю…",job);}).show();
+    }
+    private boolean accept(SessionAction action){
+        if(action!=null&&action.take(repo,generation,busy,destroyed))return true;
+        if(!destroyed)status.setText(busy?"Дождись завершения текущей операции.":"Соединение изменилось или действие уже обработано. Открой действие заново для текущей приставки.");return false;
+    }
+    private void appMenu(String pkg){
+        if(busy||destroyed||repo==null)return;SessionAction action=new SessionAction(repo,generation);
+        new AlertDialog.Builder(this).setTitle(label(pkg)).setItems(new String[]{"Открыть на телевизоре","Закрыть, если зависло"},(dialog,which)->{
+            if(!accept(action))return;
+            if(which==0)run("Открываю приложение…",()->((TvRepository)action.target).openApp(pkg));
+            else confirm("Закрыть приложение?","Оно завершит работу. Настройки и данные сохранятся; затем приложение можно открыть снова.",()->state=((TvRepository)action.target).closeApp(pkg));
+        }).show();
     }
     private void error(Exception e){String message=e.getMessage();if(message==null||message.trim().isEmpty())message=e.getClass().getSimpleName();status.setText("Не удалось завершить: "+message+"\nЕсли действие уже началось, проверь его результат перед повтором.");}
     private void capturePosition(){if(pageScroll!=null)scrollPositions[renderedTab]=pageScroll.getScrollY();if(packageList!=null){listPosition=packageList.getFirstVisiblePosition();View v=packageList.getChildAt(0);listTop=v==null?0:v.getTop();}}
@@ -178,15 +192,16 @@ public final class MainActivity extends Activity {
             TextView name=text(label(pkg),16,TEXT);name.setTypeface(null,Typeface.BOLD);row.addView(name);if(!label(pkg).equals(pkg))row.addView(text(pkg,11,MUTED));
             row.addView(text(off?"Отключено":owned?"Можно завершить восстановление":"Включено",12,MUTED));
             Button action=button(owned?"Вернуть приложение":"Отключить",()->confirm(owned?"Вернуть приложение?":"Отключить приложение?",label(pkg)+(owned?"\nВключим его и проверим результат.":"\nОно перестанет запускаться. Данные сохранятся; вернуть можно в разделе «Мои изменения»."),()->state=owned?repo.restore(pkg):repo.disable(pkg)),false);
-            action.setEnabled(!busy);row.addView(action,new LinearLayout.LayoutParams(-1,dp(44)));if(!owned){Button more=button("Открыть / закрыть",()->new AlertDialog.Builder(MainActivity.this).setTitle(label(pkg)).setItems(new String[]{"Открыть на телевизоре","Закрыть, если зависло"},(d,w)->{if(w==0)run("Открываю приложение…",()->repo.openApp(pkg));else confirm("Закрыть приложение?","Оно завершит работу. Настройки и данные сохранятся; затем приложение можно открыть снова.",()->state=repo.closeApp(pkg));}).show(),false);more.setEnabled(!busy);row.addView(more);if(!state.system.contains(pkg)){Button optimize=button("Оптимизация и замер запуска",()->appTools(pkg),false);optimize.setEnabled(!busy);row.addView(optimize);}}return row;
+            action.setEnabled(!busy);row.addView(action,new LinearLayout.LayoutParams(-1,dp(44)));if(!owned){Button more=button("Открыть / закрыть",()->appMenu(pkg),false);more.setEnabled(!busy);row.addView(more);if(!state.system.contains(pkg)){Button optimize=button("Оптимизация и замер запуска",()->appTools(pkg),false);optimize.setEnabled(!busy);row.addView(optimize);}}return row;
         }
     }
     private void appTools(String pkg){
-        if(busy||repo==null)return;
+        if(busy||destroyed||repo==null)return;final SessionAction action=new SessionAction(repo,generation);
         new AlertDialog.Builder(this).setTitle(label(pkg)).setItems(new String[]{"Замерить запуск", "Компиляция по использованию", "Полная компиляция", "Убрать предварительную компиляцию"},(d,which)->{
+            if(!action.matches(repo,generation)||busy||destroyed){accept(action);return;}
             if(which==0){
                 new AlertDialog.Builder(this).setTitle("Замерить запуск?").setMessage("Приложение на ТВ будет закрыто и открыто заново. Несохранённые действия могут потеряться, воспроизведение прервётся. Измеряется запуск экрана Android, а не загрузка видео или данных из сети. Для сравнения используй одинаковые условия.").setNegativeButton("Отмена",null).setPositiveButton("Замерить",(dialog,w)->{
-                    final long[] result={0};run("Закрываю приложение и замеряю запуск…",()->result[0]=repo.measureLaunch(pkg),false,()->{
+                    if(!accept(action))return;final long[] result={0};run("Закрываю приложение и замеряю запуск…",()->result[0]=((TvRepository)action.target).measureLaunch(pkg),false,()->{
                         Long previous=launchTimes.put(pkg,result[0]);String report="Запуск экрана: "+result[0]+" мс."+(previous==null?"\nПервый замер сохранён до отключения.":"\nПредыдущий замер: "+previous+" мс.\nРазница: "+(result[0]-previous)+" мс (отрицательная — быстрее).");
                         report+="\nОдин замер не доказывает эффект оптимизации: влияют кеш и фоновая нагрузка. Это не время готовности контента.";
                         new AlertDialog.Builder(this).setTitle(label(pkg)).setMessage(report).setPositiveButton("Понятно",null).show();status.setText("Замер завершён: "+result[0]+" мс.");
@@ -196,7 +211,7 @@ public final class MainActivity extends Activity {
             AppOptimization.Mode mode=AppOptimization.Mode.values()[which-1];
             String detail=mode==AppOptimization.Mode.PROFILE?"Android подготовит код по накопленному профилю использования. Сначала несколько раз попользуйся приложением. Без профиля эффект может отсутствовать.":mode==AppOptimization.Mode.FULL?"Android заранее скомпилирует код приложения. Это может занять до трёх минут, нагреть приставку и увеличить занимаемое место. Ускорение не гарантировано.":"Android переведёт код в режим проверки без предварительной компиляции, сохранив профиль использования. В дальнейшем система сможет снова оптимизировать приложение. Это не восстановление точного прежнего состояния.";
             detail+="\n\nНужны подтверждённый root и Android 8–13. Аккаунты и настройки приложения сохраняются. Для компиляции нужен запас свободного места не меньше 1 ГиБ. Отмена соединения не гарантирует остановку операции на ТВ.";
-            new AlertDialog.Builder(this).setTitle(mode.title+": "+label(pkg)).setMessage(detail).setNegativeButton("Отмена",null).setPositiveButton("Выполнить",(dialog,w)->run("Android обрабатывает код приложения…",()->state=repo.optimizeApp(pkg,mode),false,()->status.setText("Android подтвердил завершение: "+mode.title+". Эффект можно проверить замером запуска."))).show();
+            new AlertDialog.Builder(this).setTitle(mode.title+": "+label(pkg)).setMessage(detail).setNegativeButton("Отмена",null).setPositiveButton("Выполнить",(dialog,w)->{if(accept(action))run("Android обрабатывает код приложения…",()->state=((TvRepository)action.target).optimizeApp(pkg,mode),false,()->status.setText("Android подтвердил завершение: "+mode.title+". Эффект можно проверить замером запуска."));}).show();
         }).show();
     }
     private void remote(LinearLayout content){
@@ -251,14 +266,18 @@ public final class MainActivity extends Activity {
     }
     private void chooseApk(){
         if(busy)return;if(repo==null){status.setText("Сначала подключи приставку, затем выбери APK.");return;}
+        if(pendingApkPicker!=null){status.setText("Заверши предыдущий выбор файла перед новым.");return;}
+        pendingApkPicker=new SessionAction(repo,generation);
         android.content.Intent pick=new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("*/*");
         pick.putExtra(android.content.Intent.EXTRA_MIME_TYPES,new String[]{"application/vnd.android.package-archive","application/octet-stream"});
-        try{startActivityForResult(pick,PICK_APK);}catch(Exception e){status.setText("На телефоне не найден выбор файлов.");}
+        try{startActivityForResult(pick,PICK_APK);}catch(Exception e){pendingApkPicker=null;status.setText("На телефоне не найден выбор файлов.");}
     }
     @Override protected void onActivityResult(int request,int result,android.content.Intent data){
-        super.onActivityResult(request,result,data);if(request!=PICK_APK||result!=RESULT_OK||data==null||data.getData()==null)return;
-        if(repo==null||busy){status.setText("Для выбора APK снова подключи приставку.");return;}
-        final TvRepository target=repo;final int token;synchronized(sessionLock){token=generation;}
+        super.onActivityResult(request,result,data);if(request!=PICK_APK)return;
+        SessionAction action=pendingApkPicker;pendingApkPicker=null;
+        if(result!=RESULT_OK||data==null||data.getData()==null)return;
+        if(!accept(action))return;
+        final TvRepository target=(TvRepository)action.target;final int token=action.generation;
         android.net.Uri uri=data.getData();
         run("Читаю выбранный APK…",()->{
             ApkSelection picked=ApkSelection.read(getApplicationContext(),uri,()->{synchronized(sessionLock){return token!=generation||destroyed;}});
@@ -289,6 +308,7 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle saved){
         capturePosition();saved.putInt("tab",tab);saved.putBoolean("mine",recoveryOnly);saved.putString("query",query);saved.putIntArray("scroll",scrollPositions.clone());saved.putInt("list",listPosition);saved.putInt("top",listTop);saved.putString("ip",ip.getText().toString());saved.putString("port",port.getText().toString());super.onSaveInstanceState(saved);
     }
-    private void about(){new AlertDialog.Builder(this).setTitle("X96 Локально 0.4.0").setMessage("Настройки, приложения и пульт для домашней Wi-Fi-сети.\n\nНет облака, аккаунтов, аналитики, внешних загрузок и автоматических обновлений. Прежние значения переключателей сохраняются на телефоне. Не удаляй приложение и его данные до восстановления.\n\nОтладка ADB даёт широкие права и не шифруется. После работы выключай сетевую отладку на приставке. Root-прошивка остаётся отдельным источником риска.\n\nВ этой версии подключение вручную по IPv4 и порту; шестизначное сопряжение Android 11+ не поддерживается.\n\nИсходный код: GPL-3.0-only. Правила защиты адаптированы из Tellyscope с атрибуцией CleanYourTV (MIT). Независимый проект.").setPositiveButton("Понятно",null).show();}
+    private String appVersion(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "?";}}
+    private void about(){new AlertDialog.Builder(this).setTitle("X96 Локально "+appVersion()).setMessage("Настройки, приложения и пульт для домашней Wi-Fi-сети.\n\nНет облака, аккаунтов, аналитики, внешних загрузок и автоматических обновлений. Прежние значения переключателей сохраняются на телефоне. Не удаляй приложение и его данные до восстановления.\n\nОтладка ADB даёт широкие права и не шифруется. После работы выключай сетевую отладку на приставке. Root-прошивка остаётся отдельным источником риска.\n\nВ этой версии подключение вручную по IPv4 и порту; шестизначное сопряжение Android 11+ не поддерживается.\n\nИсходный код: GPL-3.0-only. Правила защиты адаптированы из Tellyscope с атрибуцией CleanYourTV (MIT). Независимый проект.").setPositiveButton("Понятно",null).show();}
     @Override protected void onDestroy(){destroyed=true;disconnect();worker.shutdownNow();super.onDestroy();}
 }
