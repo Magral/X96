@@ -111,7 +111,7 @@ final class ProjectivyTools {
         String version="не определена",firmware="",root="не проверен",home="",advice="",pid="не запущен",memory="",build="",board="",wifi="не определён",temperature="недоступна";
         boolean intercept,homeTask,rootReady,interceptSaved,prioritySaved,oldVersion;
         int sdk;
-        String text(){return "X96 Локально 0.7.0\nЗамер: "+measuredAt+"\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+health.text()+"\n"+memory+"\n\n"+advice+(comparison.isEmpty()?"":"\n\nПроверка первого нажатия:\n"+comparison);}
+        String text(){return "X96 Локально 0.8.0\nЗамер: "+measuredAt+"\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+health.text()+"\n"+memory+"\n\n"+advice+(comparison.isEmpty()?"":"\n\nПроверка первого нажатия:\n"+comparison);}
     }
     static String processIdentity(String pid,String raw){
         if(!pid.matches("[1-9][0-9]{0,7}"))return "";

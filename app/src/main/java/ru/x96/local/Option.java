@@ -14,6 +14,14 @@ public enum Option {
     CLEAN_OVERLAYS("Без отладочных наложений", "Убирает точки касаний и координаты указателя, если они включены в режиме разработчика. Сам режим разработчика сохраняется.", "system", new String[]{"show_touches","pointer_location"}, "0", false),
     SLEEP_30("Сон Android через 30 минут", "Задаёт системный таймер сна при бездействии. Прошивка может учитывать дополнительные условия; выключение самого телевизора зависит от HDMI-CEC.", "secure", new String[]{"sleep_timeout"}, "1800000", false);
     public final String title,description,namespace,target;public final String[] keys;public final boolean allowAbsent;
+    public String category(){
+        switch(this){
+            case ANIMATIONS:case LARGE_TEXT:case QUIET:return "Меню и удобство";
+            case NO_SAVER:case SLEEP_30:return "Сон и заставка";
+            case WIFI_SCAN:case BLE_SCAN:return "Фоновый поиск устройств";
+            default:return "Системные настройки";
+        }
+    }
     Option(String t,String d,String ns,String[] k,String value,boolean absent){title=t;description=d;namespace=ns;keys=k;target=value;allowAbsent=absent;}
     public boolean valid(String value) {
         if("null".equals(value))return allowAbsent;

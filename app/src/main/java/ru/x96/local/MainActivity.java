@@ -23,6 +23,7 @@ public final class MainActivity extends Activity {
     private final List<Button> navigation=new ArrayList<>();private final List<View> gated=new ArrayList<>();
     private final int[] scrollPositions=new int[4];private ScrollView pageScroll;private ListView packageList;private int listPosition=0,listTop=0,renderedTab=0;
     private ProjectivyTools.Report piReport,launchBaseline;
+    private int optionFilter=0;private boolean projectivyExpanded=false;
     private String launchResult="";
     private final Map<String,Long> launchTimes=new HashMap<>();
     private static final int PICK_APK=41;
@@ -41,12 +42,13 @@ public final class MainActivity extends Activity {
     }
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
+        optionFilter=Math.max(0,Math.min(2,getPreferences(0).getInt("optionFilter",0)));projectivyExpanded=getPreferences(0).getBoolean("projectivyExpanded",false);
         if(b!=null){tab=Math.max(0,Math.min(3,b.getInt("tab",0)));recoveryOnly=b.getBoolean("mine",false);query=b.getString("query","");int[] positions=b.getIntArray("scroll");if(positions!=null&&positions.length==4)System.arraycopy(positions,0,scrollPositions,0,4);listPosition=b.getInt("list",0);listTop=b.getInt("top",0);}
         ApkSelection.sweep(getApplicationContext());
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(14),dp(8),dp(14),dp(4));root.setBackgroundColor(BG);setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(dp(14),Math.max(dp(8),insets.getSystemWindowInsetTop()),dp(14),Math.max(dp(4),insets.getSystemWindowInsetBottom()));return insets;});
-        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.7.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.8.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(button("?",()->about(),false),new LinearLayout.LayoutParams(dp(44),dp(48)));root.addView(heading);
         LinearLayout connection=card(root);device=text("Подключение к приставке",16,TEXT);connection.addView(device);
         connectFields=new LinearLayout(this);connectFields.setOrientation(1);LinearLayout address=row();ip=edit("IP приставки");port=edit("Порт");
@@ -119,9 +121,26 @@ public final class MainActivity extends Activity {
     }
     private void options(LinearLayout content){
         TextView lead=text("Настрой приставку под себя",20,TEXT);lead.setTypeface(null,Typeface.BOLD);content.addView(lead);content.addView(text("Каждый переключатель сохраняет прежние значения. Выключение возвращает их обратно.",13,MUTED));
-        projectivyCard(content);
-        launchCheck(content);
+        LinearLayout pi=card(content);pi.addView(text("Projectivy и запуск приставки",18,TEXT));
+        pi.addView(text("Домашний экран, обновление лаунчера и проверка повторного логотипа после загрузки.",13,MUTED));
+        pi.addView(button(projectivyExpanded?"Свернуть настройки Projectivy":"Открыть настройки Projectivy",()->{if(busy)return;projectivyExpanded=!projectivyExpanded;getPreferences(0).edit().putBoolean("projectivyExpanded",projectivyExpanded).apply();renderBody();},true));
+        if(projectivyExpanded){projectivyCard(content);launchCheck(content);}
+        int changed=0,available=0;
+        if(state!=null)for(Option.Status item:state.options.values()){if(item.saved)changed++;if(item.saved||item.supported)available++;}
+        content.addView(text(state==null?"Подключи приставку, чтобы определить доступные настройки.":"Доступно: "+available+" · Изменено здесь: "+changed,13,MUTED));
+        String[] filters={"Доступные настройки","Все настройки","Изменённые здесь"};
+        content.addView(button("Показать: "+filters[optionFilter]+" ▾",()->{if(busy)return;new AlertDialog.Builder(this).setTitle("Какие настройки показать?").setSingleChoiceItems(filters,optionFilter,(dialog,which)->{optionFilter=which;getPreferences(0).edit().putInt("optionFilter",which).apply();dialog.dismiss();renderBody();}).setNegativeButton("Закрыть",null).show();},true));
+        if(changed>0){LinearLayout restore=card(content);restore.addView(text("Возврат настроек",17,TEXT));restore.addView(text("Вернёт все изменённые здесь переключатели, включая скрытые фильтром. Приложения, root-действия и домашний экран возвращаются в своих разделах.",13,MUTED));restore.addView(button("Вернуть прежние настройки",()->confirm("Отменить настройки?","Вернём сохранённые значения всех переключателей, в том числе скрытых текущим фильтром.",()->state=repo.restoreOptions()),true));}
+        int shown=0;
+        for(String category:new String[]{"Меню и удобство","Сон и заставка","Фоновый поиск устройств","Системные настройки"}){
+        boolean headingAdded=false;
         for(Option o:Option.values()){
+            if(!o.category().equals(category))continue;
+            Option.Status item=state==null?null:state.options.get(o);
+            if(optionFilter==2&&(item==null||!item.saved))continue;
+            if(optionFilter==0&&state!=null&&(item==null||!item.supported&&!item.saved))continue;
+            if(!headingAdded){content.addView(text(category,18,TEXT));headingAdded=true;}shown++;
+
             LinearLayout c=card(content);LinearLayout heading=row();TextView label=text(o.title,17,TEXT);heading.addView(label,new LinearLayout.LayoutParams(0,-2,1));
             Option.Status s=state==null?null:state.options.get(o);Switch toggle=new Switch(this);toggle.setContentDescription(o.title);toggle.setChecked(s!=null&&(s.saved||s.active));
             toggle.setEnabled(!busy&&s!=null&&(s.saved||s.supported&&!s.active));heading.addView(toggle);c.addView(heading);c.addView(text(o.description,13,MUTED));
@@ -129,10 +148,10 @@ public final class MainActivity extends Activity {
             c.addView(text(note,12,s!=null&&s.saved?ACCENT:MUTED));
             toggle.setOnCheckedChangeListener((v,on)->run(on?"Включаю: "+o.title:"Возвращаю: "+o.title,()->state=repo.option(o,on)));
         }
+        }
+        if(shown==0)content.addView(text(optionFilter==2?"Нет переключателей, изменённых этим приложением.":"Доступных настроек пока нет. Можно выбрать «Все настройки» и посмотреть пояснения.",14,MUTED));
         LinearLayout storage=card(content);storage.addView(text("Освободить место",17,TEXT));storage.addView(text("Просит Android освободить место за счёт кеша, если свободно меньше 1 ГБ. Аккаунты, настройки и личные данные приложений сохраняются. Фактический объём очистки определяет Android.",13,MUTED));
         storage.addView(button("Очистить кеш при нехватке места",()->confirm("Освободить место?","Android может удалить временные файлы. Приложения загрузят их заново при необходимости. Если места достаточно, очистка может ничего не изменить.",()->state=repo.trimCache()),true));
-        boolean hasChanges=false;if(state!=null)for(Option.Status s:state.options.values())if(s.saved)hasChanges=true;
-        if(hasChanges){LinearLayout restore=card(content);restore.addView(text("Возврат настроек",17,TEXT));restore.addView(text("Отменяет изменения переключателей выше. Приложения и домашний экран возвращаются отдельно.",13,MUTED));restore.addView(button("Вернуть прежние настройки",()->confirm("Отменить настройки?","Вернём значения, сохранённые перед включением переключателей.",()->state=repo.restoreOptions()),true));}
         content.addView(text("Если настройка не поддерживается прошивкой, она недоступна. Изменения не применяются автоматически.",12,MUTED));
     }
     private void applications(){

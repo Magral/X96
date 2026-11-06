@@ -1,8 +1,8 @@
 {
-  "version": "0.7.0",
-  "versionCode": 7,
+  "version": "0.8.0",
+  "versionCode": 8,
   "applicationId": "ru.x96.local",
-  "apk_sha256": "7c6cc12a295553d1a555df2e814cd72600847f7787697c0cad3afbb756dd7dab",
+  "apk_sha256": "c72304770f7bf1afc39a774b46314f9a6b053e9b71b5a21b0c95070c8f38b79d",
   "certificate_sha256": "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f",
   "same_signer_as_prior_versions": true,
   "date": "2026-11-07",
@@ -18,5 +18,6 @@
   "optimization_checks_passed": 58,
   "total_checks_passed": 424,
   "snapshot_checks_passed": 48,
-  "refresh_adb_sessions": 2
+  "refresh_adb_sessions": 2,
+  "ui_device_tested": false
 }
