@@ -11,6 +11,7 @@ public final class TvRepository {
     private final TvShell adb;
     private final RecoveryStore journal;
     private String identity="";
+    private ProjectivyTools piTools;
     private static final String QUERY_HOME="cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME";
     private static final String RESOLVE_HOME="cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME";
     public static final class State {
@@ -44,7 +45,8 @@ public final class TvRepository {
         List<String> current=components(run(RESOLVE_HOME));s.home=current.size()==1?current.get(0):"";
         s.homesKnown=!s.home.isEmpty()&&s.homeComponents.contains(s.home)&&!s.homes.isEmpty();if(!s.home.isEmpty())s.homes.add(Policy.packageOf(s.home));
         s.owned=new HashSet<>(journal.disabled(identity));s.homeSaved=journal.home(identity)!=null;
-        for(Option o:Option.values()) {String[] values;try{values=o.parse(run(o.readCommand()));}catch(Exception e){values=null;}s.options.put(o,new Option.Status(values!=null,o.matches(values),journal.option(identity,o.name())!=null));}
+        Map<Option,String[]> settings;try{settings=Option.parseAll(run(Option.readAllCommand()));}catch(Exception e){settings=Collections.emptyMap();}
+        for(Option o:Option.values()) {String[] values=settings.get(o);s.options.put(o,new Option.Status(values!=null,o.matches(values),journal.option(identity,o.name())!=null));}
         return s;
     }
     private void save(Set<String> packages) throws IOException {if(!journal.disabled(identity,new HashSet<>(packages)))throw new IOException("Не удалось сохранить журнал. Изменения отменены.");}
@@ -83,6 +85,35 @@ public final class TvRepository {
         if(!journal.forgetHome(identity))throw new IOException("Экран восстановлен, запись журнала сохранена");return after;
     }
     public void homeKey() throws Exception {run("input keyevent 3");}
+    private ProjectivyTools tools(State s){if(piTools==null)piTools=new ProjectivyTools(adb,journal,identity,s.uid);return piTools;}
+    public ProjectivyTools.Report diagnoseProjectivy(boolean probeRoot) throws Exception {State s=refresh();ProjectivyTools t=tools(s);if(probeRoot)t.probeRoot();return t.inspect(s);}
+    public State repairProjectivy(boolean withoutIntercept) throws Exception {
+        State s=projectivy();ProjectivyTools t=tools(s);t.launchHome(s);
+        // Re-check native HOME before changing the accessibility fallback.
+        s=refresh();if(!Policy.packageOf(s.home).equals(Policy.PROJECTIVY))throw new IOException("Системный HOME не подтверждён. Перехват оставлен включённым.");
+        if(withoutIntercept)t.disableIntercept();return refresh();
+    }
+    public State restoreProjectivyIntercept() throws Exception {State s=refresh();tools(s).restoreIntercept();return refresh();}
+    public State prioritizeProjectivy(boolean enabled) throws Exception {State s=refresh();tools(s).priority(enabled);return refresh();}
+    public State compileProjectivy(boolean reset) throws Exception {
+        State s=refresh();ProjectivyTools.component(s);ProjectivyTools t=tools(s);ProjectivyTools.Report r=t.inspect(s);t.compile(reset,r.sdk);return refresh();
+    }
+    public void openProjectivyStore() throws Exception {
+        State s=refresh();if(!s.packages.contains("com.android.vending"))throw new IOException("На приставке нет Google Play. Открой официальные обновления через браузер.");
+        run("am start -W -a android.intent.action.VIEW -p com.android.vending -d 'market://details?id="+Policy.PROJECTIVY+"'");
+    }
+    public State closeApp(String pkg) throws Exception {
+        State s=refresh();String reason=Policy.disableReason(pkg,s.homes,s.homesKnown,s.system.contains(pkg));
+        if(!s.packages.contains(pkg)||reason!=null||s.disabled.contains(pkg))throw new IOException("Приложение нельзя закрыть этой командой");
+        run("am force-stop --user 0 "+pkg);return refresh();
+    }
+    public void openApp(String pkg) throws Exception {
+        State s=refresh();if(!Policy.validPackage(pkg)||!s.packages.contains(pkg)||s.disabled.contains(pkg))throw new IOException("Приложение недоступно");
+        List<String> c=components(run("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER -p "+pkg));
+        if(c.size()!=1)c=components(run("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "+pkg));
+        if(c.size()!=1||!Policy.packageOf(c.get(0)).equals(pkg))throw new IOException("Не найден экран запуска приложения");
+        run("am start -W -a android.intent.action.MAIN -n "+c.get(0));
+    }
     public State option(Option o,boolean enabled) throws Exception {
         refresh();String snapshot=journal.option(identity,o.name());
         if(enabled) {
@@ -108,7 +139,7 @@ public final class TvRepository {
         run("input keyevent "+key);
     }
     public void openSettings(int kind) throws Exception {
-        String action;switch(kind){case 0:action="android.settings.SETTINGS";break;case 1:action="android.settings.WIFI_SETTINGS";break;case 2:action="android.settings.INTERNAL_STORAGE_SETTINGS";break;default:throw new IOException("Раздел недоступен");}
+        String action;switch(kind){case 0:action="android.settings.SETTINGS";break;case 1:action="android.settings.WIFI_SETTINGS";break;case 2:action="android.settings.INTERNAL_STORAGE_SETTINGS";break;case 3:action="android.settings.DISPLAY_SETTINGS";break;case 4:action="android.settings.SOUND_SETTINGS";break;case 5:action="android.settings.ACCESSIBILITY_SETTINGS";break;case 6:action="android.settings.APPLICATION_SETTINGS";break;case 7:action="android.settings.DATE_SETTINGS";break;default:throw new IOException("Раздел недоступен");}
         run("am start -W -a "+action);
     }
     public State trimCache() throws Exception {refresh();run("pm trim-caches 1G");return refresh();}

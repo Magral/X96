@@ -21,7 +21,8 @@ public final class MainActivity extends Activity {
     private TextView status,device;private EditText ip,port;private LinearLayout root,connectFields;private FrameLayout body;private ProgressBar progress;
     private boolean busy=false,recoveryOnly=false,destroyed=false;private int tab=0;private String currentIp="",query="";
     private final List<Button> navigation=new ArrayList<>();private final List<View> gated=new ArrayList<>();
-    private final int[] scrollPositions=new int[3];private ScrollView pageScroll;private ListView packageList;private int listPosition=0,listTop=0,renderedTab=0;
+    private final int[] scrollPositions=new int[4];private ScrollView pageScroll;private ListView packageList;private int listPosition=0,listTop=0,renderedTab=0;
+    private ProjectivyTools.Report piReport;
     private static final Map<String,String> NAMES=new HashMap<>();
     static {
         NAMES.put("com.google.android.videos","Google TV / Фильмы");NAMES.put("com.google.android.music","Google Play Музыка");
@@ -34,7 +35,7 @@ public final class MainActivity extends Activity {
         super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(14),dp(8),dp(14),dp(4));root.setBackgroundColor(BG);setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(dp(14),Math.max(dp(8),insets.getSystemWindowInsetTop()),dp(14),Math.max(dp(4),insets.getSystemWindowInsetBottom()));return insets;});
-        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.2.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.3.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(button("?",()->about(),false),new LinearLayout.LayoutParams(dp(44),dp(48)));root.addView(heading);
         LinearLayout connection=card(root);device=text("Подключение к приставке",16,TEXT);connection.addView(device);
         connectFields=new LinearLayout(this);connectFields.setOrientation(1);LinearLayout address=row();ip=edit("IP приставки");port=edit("Порт");
@@ -45,7 +46,7 @@ public final class MainActivity extends Activity {
         controls.addView(button("Отключить",()->disconnect(),false),weighted());connection.addView(controls);
         status=text("Укажи IP из настроек сети приставки. Порт обычно 5555.",12,MUTED);connection.addView(status);
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
-        LinearLayout tabs=row();String[] names={"Улучшения","Приложения","Пульт"};
+        LinearLayout tabs=row();String[] names={"Улучшения","Приложения","Пульт","Приставка"};
         for(int i=0;i<names.length;i++){final int target=i;Button btn=button(names[i],()->{capturePosition();tab=target;renderBody();},false);navigation.add(btn);tabs.addView(btn,weighted());}root.addView(tabs);
         body=new FrameLayout(this);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));render();
     }
@@ -69,7 +70,7 @@ public final class MainActivity extends Activity {
             catch(Exception e){candidate.cancel();adb=null;repo=null;state=null;throw e;}
         },true);
     }
-    private void disconnect(){synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
+    private void disconnect(){synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;piReport=null;currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
     private void run(String message,Job job){run(message,job,false);}
     private void run(String message,Job job,boolean connecting){
         if(busy||destroyed)return;if(repo==null&&!connecting){status.setText("Сначала подключи приставку.");return;}
@@ -99,11 +100,12 @@ public final class MainActivity extends Activity {
         for(int i=0;i<navigation.size();i++)navigation.get(i).setTextColor(i==tab?TEXT:ACCENT);
         if(tab==1){applications();return;}
         pageScroll=new ScrollView(this);pageScroll.setFillViewport(false);LinearLayout content=new LinearLayout(this);content.setOrientation(1);content.setPadding(0,0,0,dp(14));pageScroll.addView(content);body.addView(pageScroll);
-        if(tab==0)options(content);else remote(content);
+        if(tab==0)options(content);else if(tab==2)remote(content);else devicePage(content);
         ScrollView current=pageScroll;int target=scrollPositions[tab];current.post(()->current.scrollTo(0,target));
     }
     private void options(LinearLayout content){
         TextView lead=text("Настрой приставку под себя",20,TEXT);lead.setTypeface(null,Typeface.BOLD);content.addView(lead);content.addView(text("Каждый переключатель сохраняет прежние значения. Выключение возвращает их обратно.",13,MUTED));
+        projectivyCard(content);
         for(Option o:Option.values()){
             LinearLayout c=card(content);LinearLayout heading=row();TextView label=text(o.title,17,TEXT);heading.addView(label,new LinearLayout.LayoutParams(0,-2,1));
             Option.Status s=state==null?null:state.options.get(o);Switch toggle=new Switch(this);toggle.setContentDescription(o.title);toggle.setChecked(s!=null&&(s.saved||s.active));
@@ -112,10 +114,6 @@ public final class MainActivity extends Activity {
             c.addView(text(note,12,s!=null&&s.saved?ACCENT:MUTED));
             toggle.setOnCheckedChangeListener((v,on)->run(on?"Включаю: "+o.title:"Возвращаю: "+o.title,()->state=repo.option(o,on)));
         }
-        LinearLayout home=card(content);home.addView(text("Домашний экран Projectivy",17,TEXT));home.addView(text("Сделай установленный Projectivy основным экраном. Прежний выбор сохраняется для возврата.",13,MUTED));
-        home.addView(button("Выбрать Projectivy",()->confirm("Выбрать Projectivy?","Сохраним прежний домашний экран и проверим новый выбор.",()->state=repo.projectivy()),true));
-        if(state!=null&&state.homeSaved)home.addView(button("Вернуть прежний экран",()->confirm("Вернуть прежний экран?","Восстановим домашний экран, выбранный до Projectivy.",()->state=repo.restoreHome()),true));
-        home.addView(button("Проверить Home на телевизоре",()->run("Открываю домашний экран…",()->repo.homeKey()),true));
         LinearLayout storage=card(content);storage.addView(text("Освободить место",17,TEXT));storage.addView(text("Просит Android освободить место за счёт кеша, если свободно меньше 1 ГБ. Аккаунты, настройки и личные данные приложений сохраняются. Фактический объём очистки определяет Android.",13,MUTED));
         storage.addView(button("Очистить кеш при нехватке места",()->confirm("Освободить место?","Android может удалить временные файлы. Приложения загрузят их заново при необходимости. Если места достаточно, очистка может ничего не изменить.",()->state=repo.trimCache()),true));
         boolean hasChanges=false;if(state!=null)for(Option.Status s:state.options.values())if(s.saved)hasChanges=true;
@@ -145,7 +143,7 @@ public final class MainActivity extends Activity {
             TextView name=text(label(pkg),16,TEXT);name.setTypeface(null,Typeface.BOLD);row.addView(name);if(!label(pkg).equals(pkg))row.addView(text(pkg,11,MUTED));
             row.addView(text(off?"Отключено":owned?"Можно завершить восстановление":"Включено",12,MUTED));
             Button action=button(owned?"Вернуть приложение":"Отключить",()->confirm(owned?"Вернуть приложение?":"Отключить приложение?",label(pkg)+(owned?"\nВключим его и проверим результат.":"\nОно перестанет запускаться. Данные сохранятся; вернуть можно в разделе «Мои изменения»."),()->state=owned?repo.restore(pkg):repo.disable(pkg)),false);
-            action.setEnabled(!busy);row.addView(action,new LinearLayout.LayoutParams(-1,dp(44)));return row;
+            action.setEnabled(!busy);row.addView(action,new LinearLayout.LayoutParams(-1,dp(44)));if(!owned){Button more=button("Открыть / закрыть",()->new AlertDialog.Builder(MainActivity.this).setTitle(label(pkg)).setItems(new String[]{"Открыть на телевизоре","Закрыть, если зависло"},(d,w)->{if(w==0)run("Открываю приложение…",()->repo.openApp(pkg));else confirm("Закрыть приложение?","Оно завершит работу. Настройки и данные сохранятся; затем приложение можно открыть снова.",()->state=repo.closeApp(pkg));}).show(),false);more.setEnabled(!busy);row.addView(more);}return row;
         }
     }
     private void remote(LinearLayout content){
@@ -153,9 +151,40 @@ public final class MainActivity extends Activity {
         LinearLayout c=card(content);addKeys(c,new String[]{"↑"},new int[]{19});addKeys(c,new String[]{"←","OK","→"},new int[]{21,23,22});addKeys(c,new String[]{"↓"},new int[]{20});
         addKeys(c,new String[]{"Назад","Домой","Пауза / ▶"},new int[]{4,3,85});addKeys(c,new String[]{"Тише","Без звука","Громче"},new int[]{25,164,24});
         LinearLayout settings=card(content);settings.addView(text("Открыть на телевизоре",17,TEXT));
-        String[] labels={"Настройки приставки","Wi-Fi и сеть","Память и накопители"};for(int i=0;i<labels.length;i++){final int kind=i;settings.addView(button(labels[i],()->run("Открываю настройки на телевизоре…",()->repo.openSettings(kind)),true));}
+        String[] labels={"Настройки приставки","Wi-Fi и сеть","Память и накопители","Экран и разрешение","Звук","Специальные возможности","Приложения","Дата и время"};for(int i=0;i<labels.length;i++){final int kind=i;settings.addView(button(labels[i],()->run("Открываю настройки на телевизоре…",()->repo.openSettings(kind)),true));}
     }
     private void addKeys(LinearLayout parent,String[] labels,int[] codes){LinearLayout r=row();for(int i=0;i<labels.length;i++){final int code=codes[i];r.addView(button(labels[i],()->run("Отправляю кнопку…",()->repo.remote(code)),true),weighted());}parent.addView(r);}
-    private void about(){new AlertDialog.Builder(this).setTitle("X96 Локально 0.2.0").setMessage("Настройки, приложения и пульт для домашней Wi-Fi-сети.\n\nНет облака, аккаунтов, аналитики, внешних загрузок и автоматических обновлений. Прежние значения переключателей сохраняются на телефоне. Не удаляй приложение и его данные до восстановления.\n\nОтладка ADB даёт широкие права и не шифруется. После работы выключай сетевую отладку на приставке. Root-прошивка остаётся отдельным источником риска.\n\nВ этой версии подключение вручную по IPv4 и порту; шестизначное сопряжение Android 11+ не поддерживается.\n\nИсходный код: GPL-3.0-only. Правила защиты адаптированы из Tellyscope с атрибуцией CleanYourTV (MIT). Независимый проект.").setPositiveButton("Понятно",null).show();}
+    private void refreshPi() throws Exception {ProjectivyTools.Report previous=piReport;piReport=repo.diagnoseProjectivy(false);if(previous!=null&&previous.pid.matches("[0-9]+")&&piReport.pid.matches("[0-9]+"))piReport.advice+="\nМежду замерами PID "+(previous.pid.equals(piReport.pid)?"не изменился. Повторный логотип возможен без смены процесса.":"изменился: процесс Projectivy был заменён.");}
+    private void projectivyCard(LinearLayout content){
+        LinearLayout c=card(content);c.addView(text("Projectivy: запуск без повторной заставки",18,TEXT));
+        c.addView(text(piReport==null?"Проверим версию, системный домашний экран и службу перехвата. После перезагрузки можно сравнить процесс до и после первого нажатия.":"Версия: "+piReport.version+"\n"+piReport.advice,13,MUTED));
+        c.addView(button("Проверить Projectivy",()->run("Проверяю запуск Projectivy…",()->refreshPi()),true));
+        c.addView(button("Официальные обновления Projectivy",()->openLink("https://github.com/spocky/miproja1/releases/latest"),false));
+        c.addView(button("Открыть Projectivy в Google Play на ТВ",()->run("Открываю Google Play на телевизоре…",()->repo.openProjectivyStore()),true));
+        c.addView(button("Настроить системный HOME",()->confirm("Запустить Projectivy как домашний экран?","Сохраним прежний домашний экран, назначим Projectivy и явно запустим его как HOME-задачу. Проверить результат нужно также после перезагрузки.",()->{state=repo.repairProjectivy(false);refreshPi();}),true));
+        if(piReport!=null&&piReport.intercept)c.addView(button("Попробовать без двойного перехвата",()->confirm("Отключить перехват Projectivy?","Сначала назначим и проверим системный HOME. Затем отключим только службу специальных возможностей Projectivy. Его ярлыки пульта и другие функции этой службы перестанут работать; службы других приложений сохранятся. Есть отдельный возврат."+(piReport.oldVersion?"\n\nСначала рекомендуется обновить Projectivy до 4.73 или новее.":""),()->{state=repo.repairProjectivy(true);refreshPi();}),true));
+        if(piReport!=null&&piReport.interceptSaved)c.addView(button("Вернуть службу Projectivy",()->confirm("Вернуть перехват?","Добавим обратно только ранее отключённую службу Projectivy, сохранив текущие службы других приложений.",()->{state=repo.restoreProjectivyIntercept();refreshPi();}),true));
+        if(state!=null&&state.homeSaved)c.addView(button("Вернуть прежний домашний экран",()->confirm("Вернуть прежний экран?","Восстановим выбор, сохранённый перед назначением Projectivy.",()->{state=repo.restoreHome();refreshPi();}),true));
+    }
+    private void openLink(String url){try{startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,android.net.Uri.parse(url)));}catch(Exception e){status.setText("На телефоне не найден браузер для открытия ссылки.");}}
+    private Button rootButton(String label,Runnable action){Button b=button(label,action,false);b.setEnabled(!busy&&state!=null&&piReport!=null&&piReport.rootReady);return b;}
+    private void devicePage(LinearLayout content){
+        content.addView(text("Приставка и root",21,TEXT));content.addView(text("Действия выполняются только по нажатию. Неизвестные возможности прошивки не включаются автоматически.",13,MUTED));
+        LinearLayout info=card(content);info.addView(text("Прошивка и состояние",18,TEXT));
+        info.addView(text(piReport==null?"Считаем сведения о плате, сборке Android, Projectivy и памяти. Серийный номер, MAC, IP и учётные записи в отчёт не добавляются.":piReport.text(),13,MUTED));
+        info.addView(button("Обновить диагностику",()->run("Считываю сведения о приставке…",()->refreshPi()),true));
+        Button copy=button("Скопировать отчёт",()->{if(piReport!=null){android.content.ClipboardManager m=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);m.setPrimaryClip(android.content.ClipData.newPlainText("Диагностика X96",piReport.text()));status.setText("Отчёт скопирован. Его можно вставить в наш чат.");}},false);copy.setEnabled(piReport!=null);info.addView(copy);
+        LinearLayout root=card(content);root.addView(text("Доступ root",18,TEXT));root.addView(text(piReport==null?"Проверка root нужна перед расширенными действиями.":"Состояние: "+piReport.root,13,MUTED));
+        root.addView(button("Проверить root / запросить su",()->confirm("Проверить root на приставке?","Если ADB уже работает с root, используем его. Иначе отправим su -c id -u: разреши запрос на экране телевизора. На телефоне root не нужен.",()->piReport=repo.diagnoseProjectivy(true)),true));
+        LinearLayout code=card(content);code.addView(text("Оптимизация кода Projectivy",18,TEXT));code.addView(text("Для Android 8–13: заранее компилирует код установленного лаунчера. Может уменьшить работу компилятора при запуске, но не гарантирует ускорение и не исправляет конфликт HOME. Настройки Projectivy сохраняются. Выполнение может занять до трёх минут.",13,MUTED));
+        code.addView(rootButton("Оптимизировать код",()->confirm("Оптимизировать Projectivy?","Android выполнит компиляцию приложения. Дождись завершения. Закрытие соединения не гарантирует остановку операции на приставке.",()->{state=repo.compileProjectivy(false);refreshPi();})));
+        code.addView(rootButton("Сбросить оптимизацию кода",()->confirm("Сбросить компиляцию?","Android сбросит артефакты компиляции приложения к состоянию установки. Это не возврат старого профиля и не удаление настроек Projectivy.",()->{state=repo.compileProjectivy(true);refreshPi();})));
+        LinearLayout ram=card(content);ram.addView(text("Временный приоритет Projectivy",18,TEXT));ram.addView(text("Повышает приоритет текущего процесса при нехватке памяти. Android может изменить его обратно; после перезапуска процесса настройка не переносится. Это не закрепление навсегда и не лечение двойного запуска. Остальным приложениям может оставаться меньше памяти.",13,MUTED));
+        ram.addView(rootButton("Повысить приоритет текущего процесса",()->confirm("Повысить приоритет?","Root изменит только oom_score_adj проверенного процесса Projectivy. Сохраним прежнее значение; перед записью проверим PID, время старта и текущую загрузку системы.",()->{state=repo.prioritizeProjectivy(true);refreshPi();})));
+        if(piReport!=null&&piReport.prioritySaved)ram.addView(rootButton("Вернуть прежний приоритет",()->confirm("Вернуть приоритет?","Вернём сохранённое значение только тому же процессу. Если процесс уже заменился, уберём старую запись, не затрагивая другой PID.",()->{state=repo.prioritizeProjectivy(false);refreshPi();})));
+        LinearLayout firmware=card(content);firmware.addView(text("Информация о прошивках X96",18,TEXT));firmware.addView(text("Для X96 Max+ Ultra S905X4 найдены штатная прошивка и slimBOXtv. Совместимость зависит от ревизии платы, сетевого модуля и памяти; одного названия 4/64 недостаточно. Эти кнопки только открывают источники, прошивку приложение не устанавливает.",13,MUTED));
+        firmware.addView(button("Штатная прошивка: источник",()->openLink("https://x96mini.com/pages/x96-max-ultra-android-smart-tv-box"),false));firmware.addView(button("slimBOXtv для Max Plus Ultra",()->openLink("https://slimboxtv.ru/x96max-plus-ultra/"),false));
+    }
+    private void about(){new AlertDialog.Builder(this).setTitle("X96 Локально 0.3.0").setMessage("Настройки, приложения и пульт для домашней Wi-Fi-сети.\n\nНет облака, аккаунтов, аналитики, внешних загрузок и автоматических обновлений. Прежние значения переключателей сохраняются на телефоне. Не удаляй приложение и его данные до восстановления.\n\nОтладка ADB даёт широкие права и не шифруется. После работы выключай сетевую отладку на приставке. Root-прошивка остаётся отдельным источником риска.\n\nВ этой версии подключение вручную по IPv4 и порту; шестизначное сопряжение Android 11+ не поддерживается.\n\nИсходный код: GPL-3.0-only. Правила защиты адаптированы из Tellyscope с атрибуцией CleanYourTV (MIT). Независимый проект.").setPositiveButton("Понятно",null).show();}
     @Override protected void onDestroy(){destroyed=true;disconnect();worker.shutdownNow();super.onDestroy();}
 }

@@ -23,6 +23,12 @@ public final class AdbClient implements TvShell {
     private void checkCancelled() throws IOException {if(cancelled)throw new IOException("Подключение закрыто");}
     /** Only fixed commands assembled in TvRepository reach this transport; no shell UI. */
     public synchronized String shell(String command) throws Exception {
+        return execute(command,20000,30000);
+    }
+    public synchronized String shellLong(String command) throws Exception {
+        return execute(command,180000,180000);
+    }
+    private String execute(String command,int readTimeout,int totalTimeout) throws Exception {
         checkCancelled();
         String marker="X96_EXIT_"+UUID.randomUUID().toString().replace("-","")+":";
         String wrapped=command+"; printf '\\n"+marker+"%s\\n' \"$?\"";
@@ -47,10 +53,10 @@ public final class AdbClient implements TvShell {
                 } else throw new IOException("Приставка отклонила ключ. Подтверди отладку на ТВ.");
             }
             if(!connected)throw new IOException("Нет подтверждения ADB");
-            checkCancelled();s.setSoTimeout(20000);
+            checkCancelled();s.setSoTimeout(readTimeout);
             AdbProtocol.send(out,AdbProtocol.OPEN,1,0,("shell:"+wrapped+"\0").getBytes(StandardCharsets.UTF_8));
             ByteArrayOutputStream result=new ByteArrayOutputStream();int remote=0;boolean opened=false,closed=false;
-            long deadline=System.nanoTime()+30000000000L;
+            long deadline=System.nanoTime()+totalTimeout*1000000L;
             while(!closed) {
                 checkCancelled();if(System.nanoTime()>deadline)throw new IOException("Команда выполняется слишком долго");
                 AdbProtocol.Packet p=AdbProtocol.read(in);

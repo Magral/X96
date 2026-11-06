@@ -1,26 +1,21 @@
 {
-  "version": "0.2.0",
-  "versionCode": 2,
+  "version": "0.3.0",
+  "versionCode": 3,
   "applicationId": "ru.x96.local",
-  "apk_sha256": "db47fe0380a9b6f31ea275359ff54c477f871ae258420f42515d2b60d4801302",
-  "certificate_sha256": [
-    "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f"
-  ],
-  "same_signer_as_0_1_0": true,
+  "apk_sha256": "43c7741dfe7eb9c17fdc3346e46cd100481efc71fc6a59aede2cf0d55b1ab61a",
+  "certificate_sha256": "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f",
+  "same_signer_as_prior_versions": true,
   "date": "2026-11-06",
   "core_checks_passed": 78,
   "repository_checks_passed": 59,
-  "signature_verified": [
-    "v2",
-    "v3"
-  ],
-  "external_urls_in_dex": 0,
-  "runtime_dependencies": 0,
-  "services": 0,
-  "permissions": [
-    "android.permission.INTERNET",
-    "android.permission.ACCESS_NETWORK_STATE"
-  ],
+  "projectivy_root_checks_passed": 52,
   "physical_device_tested": false,
-  "prior_0_1_0_connection_user_confirmed": true
+  "root_actions_fixed_and_opt_in": true,
+  "external_links_browser_only": [
+    "https://github.com/spocky/miproja1/releases/latest",
+    "https://slimboxtv.ru/x96max-plus-ultra/",
+    "https://x96mini.com/pages/x96-max-ultra-android-smart-tv-box"
+  ],
+  "external_http_client": false,
+  "runtime_dependencies": 0
 }
