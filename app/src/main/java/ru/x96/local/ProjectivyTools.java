@@ -56,7 +56,11 @@ final class ProjectivyTools {
     void compile(boolean reset,int sdk) throws Exception {
         if(sdk<26||sdk>33)throw new IOException("Эта оптимизация поддерживается здесь только для Android 8–13");
         String result=root("cmd package compile "+(reset?"--reset ":"-m speed -f ")+PKG,true);
-        if(!result.contains("Success"))throw new IOException("Android не подтвердил оптимизацию Projectivy");
+        AppOptimization.success(result);
+    }
+    void optimizeApp(String pkg,AppOptimization.Mode mode,int sdk,long freeKiB) throws Exception {
+        String fixed=AppOptimization.command(pkg,mode,sdk,freeKiB);
+        AppOptimization.success(root(fixed,true));
     }
     static final class Process {
         final String pid,start,boot;final int score;
@@ -107,7 +111,7 @@ final class ProjectivyTools {
         String version="не определена",firmware="",root="не проверен",home="",advice="",pid="не запущен",memory="",build="",board="",wifi="не определён",temperature="недоступна";
         boolean intercept,homeTask,rootReady,interceptSaved,prioritySaved,oldVersion;
         int sdk;
-        String text(){return "X96 Локально 0.5.0\nЗамер: "+measuredAt+"\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+health.text()+"\n"+memory+"\n\n"+advice+(comparison.isEmpty()?"":"\n\nПроверка первого нажатия:\n"+comparison);}
+        String text(){return "X96 Локально 0.6.0\nЗамер: "+measuredAt+"\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+health.text()+"\n"+memory+"\n\n"+advice+(comparison.isEmpty()?"":"\n\nПроверка первого нажатия:\n"+comparison);}
     }
     static String processIdentity(String pid,String raw){
         if(!pid.matches("[1-9][0-9]{0,7}"))return "";

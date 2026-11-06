@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 
-/** All TV commands live here. No user shell, root elevation, downloads or automatic cleanup. */
+/** All TV commands live here. Fixed commands only; root requests require an explicit user action. */
 public final class TvRepository {
     private final TvShell adb;
     private final RecoveryStore journal;
@@ -98,6 +98,21 @@ public final class TvRepository {
     public State compileProjectivy(boolean reset) throws Exception {
         State s=refresh();ProjectivyTools.component(s);ProjectivyTools t=tools(s);ProjectivyTools.Report r=t.inspect(s);t.compile(reset,r.sdk);return refresh();
     }
+    public State optimizeApp(String pkg,AppOptimization.Mode mode) throws Exception {
+        State s=refresh();AppOptimization.eligible(s,pkg);ProjectivyTools t=tools(s);
+        if(!t.rootReady())throw new IOException("Сначала проверь root на вкладке «Приставка»");
+        String api=run("getprop ro.build.version.sdk").trim();
+        if(!api.matches("[0-9]{1,3}"))throw new IOException("Не удалось определить версию Android");
+        long free=-1;
+        if(mode!=AppOptimization.Mode.REMOVE)free=DeviceHealth.parse(run("df -k /data | tail -n 1")).dataAvailable;
+        t.optimizeApp(pkg,mode,Integer.parseInt(api),free);return refresh();
+    }
+    public long measureLaunch(String pkg) throws Exception {
+        State s=refresh();AppOptimization.eligible(s,pkg);
+        String component=appComponent(pkg);
+        run("am force-stop --user 0 "+pkg);
+        return AppOptimization.launchMillis(run("am start -W --user 0 -a android.intent.action.MAIN -n "+component),component);
+    }
     public void openProjectivyStore() throws Exception {
         State s=refresh();if(!s.packages.contains("com.android.vending"))throw new IOException("На приставке нет Google Play. Открой официальные обновления через браузер.");
         run("am start -W -a android.intent.action.VIEW -p com.android.vending -d 'market://details?id="+Policy.PROJECTIVY+"'");
@@ -118,10 +133,13 @@ public final class TvRepository {
     }
     public void openApp(String pkg) throws Exception {
         State s=refresh();if(!Policy.validPackage(pkg)||!s.packages.contains(pkg)||s.disabled.contains(pkg))throw new IOException("Приложение недоступно");
+        String component=appComponent(pkg);run("am start -W -a android.intent.action.MAIN -n "+component);
+    }
+    private String appComponent(String pkg) throws Exception {
         List<String> c=components(run("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER -p "+pkg));
         if(c.size()!=1)c=components(run("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "+pkg));
         if(c.size()!=1||!Policy.packageOf(c.get(0)).equals(pkg))throw new IOException("Не найден экран запуска приложения");
-        run("am start -W -a android.intent.action.MAIN -n "+c.get(0));
+        return c.get(0);
     }
     public State option(Option o,boolean enabled) throws Exception {
         refresh();String snapshot=journal.option(identity,o.name());

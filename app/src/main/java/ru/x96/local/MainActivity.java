@@ -24,6 +24,7 @@ public final class MainActivity extends Activity {
     private final int[] scrollPositions=new int[4];private ScrollView pageScroll;private ListView packageList;private int listPosition=0,listTop=0,renderedTab=0;
     private ProjectivyTools.Report piReport,launchBaseline;
     private String launchResult="";
+    private final Map<String,Long> launchTimes=new HashMap<>();
     private static final int PICK_APK=41;
     private volatile ApkSelection selectedApk;
     private volatile boolean installing=false;
@@ -45,7 +46,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(14),dp(8),dp(14),dp(4));root.setBackgroundColor(BG);setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(dp(14),Math.max(dp(8),insets.getSystemWindowInsetTop()),dp(14),Math.max(dp(4),insets.getSystemWindowInsetBottom()));return insets;});
-        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.5.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.6.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(button("?",()->about(),false),new LinearLayout.LayoutParams(dp(44),dp(48)));root.addView(heading);
         LinearLayout connection=card(root);device=text("Подключение к приставке",16,TEXT);connection.addView(device);
         connectFields=new LinearLayout(this);connectFields.setOrientation(1);LinearLayout address=row();ip=edit("IP приставки");port=edit("Порт");
@@ -82,7 +83,7 @@ public final class MainActivity extends Activity {
             catch(Exception e){candidate.cancel();adb=null;repo=null;state=null;throw e;}
         },true);
     }
-    private void disconnect(){cancelledMessage=installing?"Соединение закрыто. Если APK уже был отправлен, установка могла завершиться на ТВ. Проверь установленную версию перед повтором.":"Соединение закрыто.";ApkSelection selection=selectedApk;selectedApk=null;if(selection!=null)selection.close();synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;piReport=null;launchBaseline=null;launchResult="";currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
+    private void disconnect(){cancelledMessage=installing?"Соединение закрыто. Если APK уже был отправлен, установка могла завершиться на ТВ. Проверь установленную версию перед повтором.":"Соединение закрыто.";ApkSelection selection=selectedApk;selectedApk=null;if(selection!=null)selection.close();synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;piReport=null;launchBaseline=null;launchResult="";launchTimes.clear();currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
     private void run(String message,Job job){run(message,job,false);}
     private void run(String message,Job job,boolean connecting){run(message,job,connecting,null);}
     private void run(String message,Job job,boolean connecting,Runnable onSuccess){
@@ -138,7 +139,7 @@ public final class MainActivity extends Activity {
         LinearLayout content=new LinearLayout(this);content.setOrientation(1);body.addView(content);
         content.addView(text(recoveryOnly?"Мои изменения":"Управление приложениями",20,TEXT));
         content.addView(button("Установить APK с телефона",()->chooseApk(),true));
-        content.addView(text("Защищённые системные службы скрыты. Здесь только доступные действия и восстановление твоих изменений.",13,MUTED));
+        content.addView(text("Защищённые службы скрыты. У пользовательских приложений доступны замер запуска и компиляция кода с root (Android 8–13).",13,MUTED));
         Button filter=button(recoveryOnly?"Показать доступные приложения":"Показать мои изменения",()->{capturePosition();recoveryOnly=!recoveryOnly;listPosition=0;listTop=0;renderBody();},false);content.addView(filter);
         EditText search=edit("Поиск приложения");search.setText(query);content.addView(search,new LinearLayout.LayoutParams(-1,dp(46)));
         List<String> visible=new ArrayList<>();PackageAdapter adapter=new PackageAdapter(visible);
@@ -158,8 +159,26 @@ public final class MainActivity extends Activity {
             TextView name=text(label(pkg),16,TEXT);name.setTypeface(null,Typeface.BOLD);row.addView(name);if(!label(pkg).equals(pkg))row.addView(text(pkg,11,MUTED));
             row.addView(text(off?"Отключено":owned?"Можно завершить восстановление":"Включено",12,MUTED));
             Button action=button(owned?"Вернуть приложение":"Отключить",()->confirm(owned?"Вернуть приложение?":"Отключить приложение?",label(pkg)+(owned?"\nВключим его и проверим результат.":"\nОно перестанет запускаться. Данные сохранятся; вернуть можно в разделе «Мои изменения»."),()->state=owned?repo.restore(pkg):repo.disable(pkg)),false);
-            action.setEnabled(!busy);row.addView(action,new LinearLayout.LayoutParams(-1,dp(44)));if(!owned){Button more=button("Открыть / закрыть",()->new AlertDialog.Builder(MainActivity.this).setTitle(label(pkg)).setItems(new String[]{"Открыть на телевизоре","Закрыть, если зависло"},(d,w)->{if(w==0)run("Открываю приложение…",()->repo.openApp(pkg));else confirm("Закрыть приложение?","Оно завершит работу. Настройки и данные сохранятся; затем приложение можно открыть снова.",()->state=repo.closeApp(pkg));}).show(),false);more.setEnabled(!busy);row.addView(more);}return row;
+            action.setEnabled(!busy);row.addView(action,new LinearLayout.LayoutParams(-1,dp(44)));if(!owned){Button more=button("Открыть / закрыть",()->new AlertDialog.Builder(MainActivity.this).setTitle(label(pkg)).setItems(new String[]{"Открыть на телевизоре","Закрыть, если зависло"},(d,w)->{if(w==0)run("Открываю приложение…",()->repo.openApp(pkg));else confirm("Закрыть приложение?","Оно завершит работу. Настройки и данные сохранятся; затем приложение можно открыть снова.",()->state=repo.closeApp(pkg));}).show(),false);more.setEnabled(!busy);row.addView(more);if(!state.system.contains(pkg)){Button optimize=button("Оптимизация и замер запуска",()->appTools(pkg),false);optimize.setEnabled(!busy);row.addView(optimize);}}return row;
         }
+    }
+    private void appTools(String pkg){
+        if(busy||repo==null)return;
+        new AlertDialog.Builder(this).setTitle(label(pkg)).setItems(new String[]{"Замерить запуск", "Компиляция по использованию", "Полная компиляция", "Убрать предварительную компиляцию"},(d,which)->{
+            if(which==0){
+                new AlertDialog.Builder(this).setTitle("Замерить запуск?").setMessage("Приложение на ТВ будет закрыто и открыто заново. Несохранённые действия могут потеряться, воспроизведение прервётся. Измеряется запуск экрана Android, а не загрузка видео или данных из сети. Для сравнения используй одинаковые условия.").setNegativeButton("Отмена",null).setPositiveButton("Замерить",(dialog,w)->{
+                    final long[] result={0};run("Закрываю приложение и замеряю запуск…",()->result[0]=repo.measureLaunch(pkg),false,()->{
+                        Long previous=launchTimes.put(pkg,result[0]);String report="Запуск экрана: "+result[0]+" мс."+(previous==null?"\nПервый замер сохранён до отключения.":"\nПредыдущий замер: "+previous+" мс.\nРазница: "+(result[0]-previous)+" мс (отрицательная — быстрее).");
+                        report+="\nОдин замер не доказывает эффект оптимизации: влияют кеш и фоновая нагрузка. Это не время готовности контента.";
+                        new AlertDialog.Builder(this).setTitle(label(pkg)).setMessage(report).setPositiveButton("Понятно",null).show();status.setText("Замер завершён: "+result[0]+" мс.");
+                    });
+                }).show();return;
+            }
+            AppOptimization.Mode mode=AppOptimization.Mode.values()[which-1];
+            String detail=mode==AppOptimization.Mode.PROFILE?"Android подготовит код по накопленному профилю использования. Сначала несколько раз попользуйся приложением. Без профиля эффект может отсутствовать.":mode==AppOptimization.Mode.FULL?"Android заранее скомпилирует код приложения. Это может занять до трёх минут, нагреть приставку и увеличить занимаемое место. Ускорение не гарантировано.":"Android переведёт код в режим проверки без предварительной компиляции, сохранив профиль использования. В дальнейшем система сможет снова оптимизировать приложение. Это не восстановление точного прежнего состояния.";
+            detail+="\n\nНужны подтверждённый root и Android 8–13. Аккаунты и настройки приложения сохраняются. Для компиляции нужен запас свободного места не меньше 1 ГиБ. Отмена соединения не гарантирует остановку операции на ТВ.";
+            new AlertDialog.Builder(this).setTitle(mode.title+": "+label(pkg)).setMessage(detail).setNegativeButton("Отмена",null).setPositiveButton("Выполнить",(dialog,w)->run("Android обрабатывает код приложения…",()->state=repo.optimizeApp(pkg,mode),false,()->status.setText("Android подтвердил завершение: "+mode.title+". Эффект можно проверить замером запуска."))).show();
+        }).show();
     }
     private void remote(LinearLayout content){
         content.addView(text("Пульт на телефоне",20,TEXT));content.addView(text("Управление меню приставки по Wi-Fi. Громкость меняется на приставке; управление громкостью телевизора зависит от подключения.",13,MUTED));
@@ -204,7 +223,7 @@ public final class MainActivity extends Activity {
         root.addView(button("Проверить root / запросить su",()->confirm("Проверить root на приставке?","Если ADB уже работает с root, используем его. Иначе отправим su -c id -u: разреши запрос на экране телевизора. На телефоне root не нужен.",()->piReport=repo.diagnoseProjectivy(true)),true));
         LinearLayout code=card(content);code.addView(text("Оптимизация кода Projectivy",18,TEXT));code.addView(text("Для Android 8–13: заранее компилирует код установленного лаунчера. Может уменьшить работу компилятора при запуске, но не гарантирует ускорение и не исправляет конфликт HOME. Настройки Projectivy сохраняются. Выполнение может занять до трёх минут.",13,MUTED));
         code.addView(rootButton("Оптимизировать код",()->confirm("Оптимизировать Projectivy?","Android выполнит компиляцию приложения. Дождись завершения. Закрытие соединения не гарантирует остановку операции на приставке.",()->{state=repo.compileProjectivy(false);refreshPi();})));
-        code.addView(rootButton("Сбросить оптимизацию кода",()->confirm("Сбросить компиляцию?","Android сбросит артефакты компиляции приложения к состоянию установки. Это не возврат старого профиля и не удаление настроек Projectivy.",()->{state=repo.compileProjectivy(true);refreshPi();})));
+        code.addView(rootButton("Сбросить оптимизацию кода",()->confirm("Сбросить компиляцию?","Android сбросит артефакты компиляции и локальный профиль использования кода. Это не возврат старого профиля и не удаление настроек Projectivy.",()->{state=repo.compileProjectivy(true);refreshPi();})));
         LinearLayout ram=card(content);ram.addView(text("Временный приоритет Projectivy",18,TEXT));ram.addView(text("Повышает приоритет текущего процесса при нехватке памяти. Android может изменить его обратно; после перезапуска процесса настройка не переносится. Это не закрепление навсегда и не лечение двойного запуска. Остальным приложениям может оставаться меньше памяти.",13,MUTED));
         ram.addView(rootButton("Повысить приоритет текущего процесса",()->confirm("Повысить приоритет?","Root изменит только oom_score_adj проверенного процесса Projectivy. Сохраним прежнее значение; перед записью проверим PID, время старта и текущую загрузку системы.",()->{state=repo.prioritizeProjectivy(true);refreshPi();})));
         if(piReport!=null&&piReport.prioritySaved)ram.addView(rootButton("Вернуть прежний приоритет",()->confirm("Вернуть приоритет?","Вернём сохранённое значение только тому же процессу. Если процесс уже заменился, уберём старую запись, не затрагивая другой PID.",()->{state=repo.prioritizeProjectivy(false);refreshPi();})));
