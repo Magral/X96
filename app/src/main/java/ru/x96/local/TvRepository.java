@@ -166,7 +166,7 @@ public final class TvRepository {
         refresh();for(Option o:Option.values())if(journal.option(identity,o.name())!=null)option(o,false);return refresh();
     }
     public void remote(int key) throws Exception {
-        switch(key){case 3:case 4:case 19:case 20:case 21:case 22:case 23:case 24:case 25:case 85:case 164:break;default:throw new IOException("Кнопка недоступна");}
+        switch(key){case 3:case 4:case 19:case 20:case 21:case 22:case 23:case 24:case 25:case 85:case 164:case 86:case 87:case 88:case 89:case 90:case 66:case 67:break;default:throw new IOException("Кнопка недоступна");}
         run("input keyevent "+key);
     }
     public void openSettings(int kind) throws Exception {

@@ -218,6 +218,13 @@ public final class MainActivity extends Activity {
         content.addView(text("Пульт на телефоне",20,TEXT));content.addView(text("Управление меню приставки по Wi-Fi. Громкость меняется на приставке; управление громкостью телевизора зависит от подключения.",13,MUTED));
         LinearLayout c=card(content);addKeys(c,new String[]{"↑"},new int[]{19});addKeys(c,new String[]{"←","OK","→"},new int[]{21,23,22});addKeys(c,new String[]{"↓"},new int[]{20});
         addKeys(c,new String[]{"Назад","Домой","Пауза / ▶"},new int[]{4,3,85});addKeys(c,new String[]{"Тише","Без звука","Громче"},new int[]{25,164,24});
+        LinearLayout media=card(content);media.addView(text("Управление воспроизведением",17,TEXT));
+        addKeys(media,new String[]{"Предыдущий","Стоп","Следующий"},new int[]{88,86,87});
+        addKeys(media,new String[]{"Перемотка назад","Перемотка вперёд"},new int[]{89,90});
+        media.addView(text("Действие зависит от проигрывателя. Перемотка не задаёт точное число секунд; некоторые приложения эти кнопки не поддерживают.",13,MUTED));
+        LinearLayout keyboard=card(content);keyboard.addView(text("Экранная клавиатура",17,TEXT));
+        addKeys(keyboard,new String[]{"Удалить символ","Ввод"},new int[]{67,66});
+        keyboard.addView(text("Сначала выбери поле ввода на ТВ. Кнопки действуют на текущий экран; «Ввод» может подтвердить поиск или форму.",13,MUTED));
         LinearLayout settings=card(content);settings.addView(text("Открыть на телевизоре",17,TEXT));
         String[] labels={"Настройки приставки","Wi-Fi и сеть","Память и накопители","Экран и разрешение","Звук","Специальные возможности","Приложения","Дата и время"};for(int i=0;i<labels.length;i++){final int kind=i;settings.addView(button(labels[i],()->run("Открываю настройки на телевизоре…",()->repo.openSettings(kind)),true));}
     }

@@ -60,6 +60,10 @@ public final class RepositoryTests {
         tv.homeUnknown=true;int count=tv.mutations;rejects(()->recovered.disable("com.example.game"));check(tv.mutations==count,"unknown home fails closed");tv.homeUnknown=false;
         tv.id="tv-two";rejects(()->recovered.disable("com.example.game"));check(tv.mutations==count,"different TV at same IP cannot mutate");
         options();
+        final java.util.List<String> keys=new java.util.ArrayList<>();TvRepository remote=new TvRepository(c->{keys.add(c);return "";},new MemoryStore());
+        for(int key:new int[]{86,87,88,89,90,66,67})remote.remote(key);
+        check(keys.equals(Arrays.asList("input keyevent 86","input keyevent 87","input keyevent 88","input keyevent 89","input keyevent 90","input keyevent 66","input keyevent 67")),"media and keyboard use fixed keycodes only");
+        rejects(()->remote.remote(26));check(keys.size()==7,"unsupported power key sends no command");
         System.out.println("PASS: "+checks+" repository checks (write-ahead recovery, storage failure, identity, protected apps, Home rollback)");
     }
     static void options() throws Exception {
