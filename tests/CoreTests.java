@@ -15,7 +15,7 @@ import javax.crypto.Cipher;
 /** Host tests; the simulated ADB server has no network and never touches a real TV. */
 public final class CoreTests {
     static int checks;
-    static void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
+    static synchronized void check(boolean value,String message){checks++;if(!value)throw new AssertionError(message);}
     interface Throwing {void run() throws Exception;}
     static void rejects(Throwing f) throws Exception {boolean failed=false;try{f.run();}catch(Exception e){failed=true;}check(failed,"must reject invalid input");}
     static byte[] bytes(String s){return s.getBytes(StandardCharsets.UTF_8);}
@@ -41,7 +41,7 @@ public final class CoreTests {
         byte[] huge=b.toByteArray();ByteBuffer.wrap(huge).order(ByteOrder.LITTLE_ENDIAN).putInt(12,AdbProtocol.MAX_PAYLOAD+1);rejects(()->AdbProtocol.read(new ByteArrayInputStream(huge)));
         rejects(()->AdbProtocol.read(new ByteArrayInputStream(new byte[5])));
     }
-    static final class FakeSocket extends Socket {
+    static class FakeSocket extends Socket {
         final PipedInputStream phoneInput=new PipedInputStream(65536),serverInput=new PipedInputStream(65536);
         final PipedOutputStream serverOutput=new PipedOutputStream(phoneInput),phoneOutput=new PipedOutputStream(serverInput);
         SocketAddress destination;

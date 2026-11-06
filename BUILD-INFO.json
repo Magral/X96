@@ -1,21 +1,17 @@
 {
-  "version": "0.3.0",
-  "versionCode": 3,
+  "version": "0.4.0",
+  "versionCode": 4,
   "applicationId": "ru.x96.local",
-  "apk_sha256": "43c7741dfe7eb9c17fdc3346e46cd100481efc71fc6a59aede2cf0d55b1ab61a",
+  "apk_sha256": "791dd2492fc26561c98c94fc6968ff57e5ca992ce0186a9e740bb33b82b00e27",
   "certificate_sha256": "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f",
   "same_signer_as_prior_versions": true,
   "date": "2026-11-06",
   "core_checks_passed": 78,
   "repository_checks_passed": 59,
   "projectivy_root_checks_passed": 52,
+  "install_checks_passed": 95,
   "physical_device_tested": false,
-  "root_actions_fixed_and_opt_in": true,
-  "external_links_browser_only": [
-    "https://github.com/spocky/miproja1/releases/latest",
-    "https://slimboxtv.ru/x96max-plus-ultra/",
-    "https://x96mini.com/pages/x96-max-ultra-android-smart-tv-box"
-  ],
-  "external_http_client": false,
-  "runtime_dependencies": 0
+  "runtime_dependencies": 0,
+  "new_permissions": false,
+  "installer": "standard ADB streamed install, confirmed file only, no downgrade or signature bypass"
 }

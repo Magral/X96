@@ -102,6 +102,15 @@ public final class TvRepository {
         State s=refresh();if(!s.packages.contains("com.android.vending"))throw new IOException("На приставке нет Google Play. Открой официальные обновления через браузер.");
         run("am start -W -a android.intent.action.VIEW -p com.android.vending -d 'market://details?id="+Policy.PROJECTIVY+"'");
     }
+    public State installApk(java.io.File file,String pkg,long versionCode,int minSdk,ApkInstall.Progress progress) throws Exception {
+        State s=refresh();if(!Policy.validPackage(pkg)||versionCode<0)throw new IOException("Некорректный пакет APK");
+        if(s.system.contains(pkg)&&!pkg.equals(Policy.PROJECTIVY))throw new IOException("Обновление системных компонентов через этот установщик заблокировано");
+        String api=run("getprop ro.build.version.sdk").trim();if(!api.matches("[0-9]{1,3}")||minSdk>Integer.parseInt(api))throw new IOException("Для APK нужна более новая версия Android");
+        ApkInstall.size(file.length());try(java.io.InputStream in=new java.io.FileInputStream(file)){adb.install(in,file.length(),progress);}
+        State after=refresh();if(!after.packages.contains(pkg))throw new IOException("Установщик ответил успешно, но пакет не найден. Обнови список перед повтором.");
+        java.util.regex.Matcher v=java.util.regex.Pattern.compile("versionCode=([0-9]+)").matcher(run("dumpsys package "+pkg+" | grep -m 1 'versionCode='"));
+        if(!v.find()||!v.group(1).equals(Long.toString(versionCode)))throw new IOException("Установленная версия не совпала с выбранным APK. Проверь приложение на приставке.");return after;
+    }
     public State closeApp(String pkg) throws Exception {
         State s=refresh();String reason=Policy.disableReason(pkg,s.homes,s.homesKnown,s.system.contains(pkg));
         if(!s.packages.contains(pkg)||reason!=null||s.disabled.contains(pkg))throw new IOException("Приложение нельзя закрыть этой командой");

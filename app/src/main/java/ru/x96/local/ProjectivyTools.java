@@ -104,7 +104,7 @@ final class ProjectivyTools {
         String version="не определена",firmware="",root="не проверен",home="",advice="",pid="не запущен",memory="",build="",board="",wifi="не определён",temperature="недоступна";
         boolean intercept,homeTask,rootReady,interceptSaved,prioritySaved,oldVersion;
         int sdk;
-        String text(){return "X96 Локально 0.3.0\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+memory+"\n\n"+advice;}
+        String text(){return "X96 Локально 0.4.0\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+memory+"\n\n"+advice;}
     }
     private String optional(String c){try{return shell.shell(c);}catch(Exception e){return "";}}
     static boolean oldVersion(String v){Matcher m=Pattern.compile("^(\\d{1,3})\\.(\\d{1,3})(?:\\D|$)").matcher(v);if(!m.find())return false;int major=Integer.parseInt(m.group(1)),minor=Integer.parseInt(m.group(2));return major<4||major==4&&minor<73;}

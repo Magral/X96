@@ -23,6 +23,12 @@ public final class MainActivity extends Activity {
     private final List<Button> navigation=new ArrayList<>();private final List<View> gated=new ArrayList<>();
     private final int[] scrollPositions=new int[4];private ScrollView pageScroll;private ListView packageList;private int listPosition=0,listTop=0,renderedTab=0;
     private ProjectivyTools.Report piReport;
+    private static final int PICK_APK=41;
+    private volatile ApkSelection selectedApk;
+    private volatile boolean installing=false;
+    private String cancelledMessage="Соединение закрыто.";
+    private long progressAt=0;
+
     private static final Map<String,String> NAMES=new HashMap<>();
     static {
         NAMES.put("com.google.android.videos","Google TV / Фильмы");NAMES.put("com.google.android.music","Google Play Музыка");
@@ -32,10 +38,13 @@ public final class MainActivity extends Activity {
         NAMES.put("org.videolan.vlc","VLC");NAMES.put("com.plexapp.android","Plex");NAMES.put("org.xbmc.kodi","Kodi");
     }
     @Override public void onCreate(Bundle b) {
-        super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
+        super.onCreate(b);
+        if(b!=null){tab=Math.max(0,Math.min(3,b.getInt("tab",0)));recoveryOnly=b.getBoolean("mine",false);query=b.getString("query","");int[] positions=b.getIntArray("scroll");if(positions!=null&&positions.length==4)System.arraycopy(positions,0,scrollPositions,0,4);listPosition=b.getInt("list",0);listTop=b.getInt("top",0);}
+        ApkSelection.sweep(getApplicationContext());
+        getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(14),dp(8),dp(14),dp(4));root.setBackgroundColor(BG);setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(dp(14),Math.max(dp(8),insets.getSystemWindowInsetTop()),dp(14),Math.max(dp(4),insets.getSystemWindowInsetBottom()));return insets;});
-        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.3.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.4.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(button("?",()->about(),false),new LinearLayout.LayoutParams(dp(44),dp(48)));root.addView(heading);
         LinearLayout connection=card(root);device=text("Подключение к приставке",16,TEXT);connection.addView(device);
         connectFields=new LinearLayout(this);connectFields.setOrientation(1);LinearLayout address=row();ip=edit("IP приставки");port=edit("Порт");
@@ -48,7 +57,9 @@ public final class MainActivity extends Activity {
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setIndeterminate(true);root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
         LinearLayout tabs=row();String[] names={"Улучшения","Приложения","Пульт","Приставка"};
         for(int i=0;i<names.length;i++){final int target=i;Button btn=button(names[i],()->{capturePosition();tab=target;renderBody();},false);navigation.add(btn);tabs.addView(btn,weighted());}root.addView(tabs);
-        body=new FrameLayout(this);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));render();
+        body=new FrameLayout(this);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
+        if(b!=null){ip.setText(b.getString("ip",ip.getText().toString()));port.setText(b.getString("port",port.getText().toString()));}
+        render();
     }
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private LinearLayout.LayoutParams weighted(){return new LinearLayout.LayoutParams(0,dp(48),1);}
@@ -57,7 +68,7 @@ public final class MainActivity extends Activity {
     private EditText edit(String hint){EditText e=new EditText(this);e.setSingleLine(true);e.setHint(hint);e.setTextColor(TEXT);e.setHintTextColor(MUTED);e.setTextSize(14);return e;}
     private GradientDrawable shape(int color){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(12));return d;}
     private LinearLayout card(LinearLayout parent){LinearLayout c=new LinearLayout(this);c.setOrientation(1);c.setPadding(dp(12),dp(9),dp(12),dp(9));c.setBackground(shape(CARD));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(8);parent.addView(c,p);return c;}
-    private Button button(String label,Runnable task,boolean gate){Button b=new Button(this);b.setText(label);b.setTextSize(13);b.setAllCaps(false);b.setTextColor(ACCENT);b.setMinWidth(0);b.setMinimumWidth(0);b.setPadding(dp(5),0,dp(5),0);b.setOnClickListener(v->task.run());if(gate)gated.add(b);return b;}
+    private Button button(String label,Runnable task,boolean gate){Button b=new Button(this);b.setText(label);b.setTextSize(13);b.setAllCaps(false);b.setTextColor(ACCENT);b.setMinWidth(0);b.setMinimumWidth(0);b.setPadding(dp(5),0,dp(5),0);b.setOnClickListener(v->task.run());if(gate){gated.add(b);b.setEnabled(!busy);}return b;}
     private interface Job {void execute() throws Exception;}
     private void connect(){
         if(busy)return;String host=ip.getText().toString().trim(),portText=port.getText().toString().trim();int p;
@@ -70,23 +81,24 @@ public final class MainActivity extends Activity {
             catch(Exception e){candidate.cancel();adb=null;repo=null;state=null;throw e;}
         },true);
     }
-    private void disconnect(){synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;piReport=null;currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
+    private void disconnect(){cancelledMessage=installing?"Соединение закрыто. Если APK уже был отправлен, установка могла завершиться на ТВ. Проверь установленную версию перед повтором.":"Соединение закрыто.";ApkSelection selection=selectedApk;selectedApk=null;if(selection!=null)selection.close();synchronized(sessionLock){generation++;AdbClient c=adb;if(c!=null)c.cancel();repo=null;adb=null;state=null;piReport=null;currentIp="";}if(status!=null){status.setText("Отключено. Для полного закрытия доступа выключи сетевую отладку на ТВ.");render();}}
     private void run(String message,Job job){run(message,job,false);}
-    private void run(String message,Job job,boolean connecting){
+    private void run(String message,Job job,boolean connecting){run(message,job,connecting,null);}
+    private void run(String message,Job job,boolean connecting,Runnable onSuccess){
         if(busy||destroyed)return;if(repo==null&&!connecting){status.setText("Сначала подключи приставку.");return;}
         final int token; synchronized(sessionLock){token=generation;}final TvRepository session=repo;
-        busy=true;status.setText(message);render();
+        busy=true;progress.setIndeterminate(true);status.setText(message);render();
         worker.execute(()->{Exception failure=null;TvRepository.State recovered=null;try{job.execute();}catch(Exception e){failure=e;if(session!=null)try{recovered=session.refresh();}catch(Exception ignored){}}
             final Exception result=failure;final TvRepository.State recovery=recovered;runOnUiThread(()->{if(destroyed)return;busy=false;
-                if(token!=generation){state=null;repo=null;status.setText("Соединение закрыто.");}
+                if(token!=generation){state=null;repo=null;status.setText(cancelledMessage);}
                 else if(result!=null){if(recovery!=null){state=recovery;}else{if(adb!=null)adb.cancel();adb=null;repo=null;state=null;}error(result);}
-                else status.setText(state==null?"Отключено.":"Готово · соединение по Wi-Fi");render();});});
+                else status.setText(state==null?"Отключено.":"Готово · соединение по Wi-Fi");render();if(result==null&&token==generation&&onSuccess!=null)onSuccess.run();});});
     }
     private void confirm(String title,String message,Job job){
         if(busy)return;if(repo==null){status.setText("Сначала подключи приставку.");return;}
         new AlertDialog.Builder(this).setTitle(title).setMessage(message).setNegativeButton("Отмена",null).setPositiveButton("Продолжить",(d,w)->run("Применяю и проверяю…",job)).show();
     }
-    private void error(Exception e){String message=e.getMessage();if(message==null||message.trim().isEmpty())message=e.getClass().getSimpleName();status.setText("Не удалось завершить: "+message+"\nПодключись снова, чтобы проверить результат и при необходимости вернуть изменения.");}
+    private void error(Exception e){String message=e.getMessage();if(message==null||message.trim().isEmpty())message=e.getClass().getSimpleName();status.setText("Не удалось завершить: "+message+"\nЕсли действие уже началось, проверь его результат перед повтором.");}
     private void capturePosition(){if(pageScroll!=null)scrollPositions[renderedTab]=pageScroll.getScrollY();if(packageList!=null){listPosition=packageList.getFirstVisiblePosition();View v=packageList.getChildAt(0);listTop=v==null?0:v.getTop();}}
     private void render(){
         if(body==null)return;device.setText(state==null?"Подключение к приставке":state.model+" · Android "+state.android);
@@ -123,6 +135,7 @@ public final class MainActivity extends Activity {
     private void applications(){
         LinearLayout content=new LinearLayout(this);content.setOrientation(1);body.addView(content);
         content.addView(text(recoveryOnly?"Мои изменения":"Управление приложениями",20,TEXT));
+        content.addView(button("Установить APK с телефона",()->chooseApk(),true));
         content.addView(text("Защищённые системные службы скрыты. Здесь только доступные действия и восстановление твоих изменений.",13,MUTED));
         Button filter=button(recoveryOnly?"Показать доступные приложения":"Показать мои изменения",()->{capturePosition();recoveryOnly=!recoveryOnly;listPosition=0;listTop=0;renderBody();},false);content.addView(filter);
         EditText search=edit("Поиск приложения");search.setText(query);content.addView(search,new LinearLayout.LayoutParams(-1,dp(46)));
@@ -159,6 +172,7 @@ public final class MainActivity extends Activity {
         LinearLayout c=card(content);c.addView(text("Projectivy: запуск без повторной заставки",18,TEXT));
         c.addView(text(piReport==null?"Проверим версию, системный домашний экран и службу перехвата. После перезагрузки можно сравнить процесс до и после первого нажатия.":"Версия: "+piReport.version+"\n"+piReport.advice,13,MUTED));
         c.addView(button("Проверить Projectivy",()->run("Проверяю запуск Projectivy…",()->refreshPi()),true));
+        c.addView(button("Установить APK с телефона",()->chooseApk(),true));
         c.addView(button("Официальные обновления Projectivy",()->openLink("https://github.com/spocky/miproja1/releases/latest"),false));
         c.addView(button("Открыть Projectivy в Google Play на ТВ",()->run("Открываю Google Play на телевизоре…",()->repo.openProjectivyStore()),true));
         c.addView(button("Настроить системный HOME",()->confirm("Запустить Projectivy как домашний экран?","Сохраним прежний домашний экран, назначим Projectivy и явно запустим его как HOME-задачу. Проверить результат нужно также после перезагрузки.",()->{state=repo.repairProjectivy(false);refreshPi();}),true));
@@ -185,6 +199,46 @@ public final class MainActivity extends Activity {
         LinearLayout firmware=card(content);firmware.addView(text("Информация о прошивках X96",18,TEXT));firmware.addView(text("Для X96 Max+ Ultra S905X4 найдены штатная прошивка и slimBOXtv. Совместимость зависит от ревизии платы, сетевого модуля и памяти; одного названия 4/64 недостаточно. Эти кнопки только открывают источники, прошивку приложение не устанавливает.",13,MUTED));
         firmware.addView(button("Штатная прошивка: источник",()->openLink("https://x96mini.com/pages/x96-max-ultra-android-smart-tv-box"),false));firmware.addView(button("slimBOXtv для Max Plus Ultra",()->openLink("https://slimboxtv.ru/x96max-plus-ultra/"),false));
     }
-    private void about(){new AlertDialog.Builder(this).setTitle("X96 Локально 0.3.0").setMessage("Настройки, приложения и пульт для домашней Wi-Fi-сети.\n\nНет облака, аккаунтов, аналитики, внешних загрузок и автоматических обновлений. Прежние значения переключателей сохраняются на телефоне. Не удаляй приложение и его данные до восстановления.\n\nОтладка ADB даёт широкие права и не шифруется. После работы выключай сетевую отладку на приставке. Root-прошивка остаётся отдельным источником риска.\n\nВ этой версии подключение вручную по IPv4 и порту; шестизначное сопряжение Android 11+ не поддерживается.\n\nИсходный код: GPL-3.0-only. Правила защиты адаптированы из Tellyscope с атрибуцией CleanYourTV (MIT). Независимый проект.").setPositiveButton("Понятно",null).show();}
+    private void chooseApk(){
+        if(busy)return;if(repo==null){status.setText("Сначала подключи приставку, затем выбери APK.");return;}
+        android.content.Intent pick=new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT).addCategory(android.content.Intent.CATEGORY_OPENABLE).setType("*/*");
+        pick.putExtra(android.content.Intent.EXTRA_MIME_TYPES,new String[]{"application/vnd.android.package-archive","application/octet-stream"});
+        try{startActivityForResult(pick,PICK_APK);}catch(Exception e){status.setText("На телефоне не найден выбор файлов.");}
+    }
+    @Override protected void onActivityResult(int request,int result,android.content.Intent data){
+        super.onActivityResult(request,result,data);if(request!=PICK_APK||result!=RESULT_OK||data==null||data.getData()==null)return;
+        if(repo==null||busy){status.setText("Для выбора APK снова подключи приставку.");return;}
+        final TvRepository target=repo;final int token;synchronized(sessionLock){token=generation;}
+        android.net.Uri uri=data.getData();
+        run("Читаю выбранный APK…",()->{
+            ApkSelection picked=ApkSelection.read(getApplicationContext(),uri,()->{synchronized(sessionLock){return token!=generation||destroyed;}});
+            synchronized(sessionLock){if(token!=generation||destroyed){picked.close();throw new java.io.IOException("Выбор APK отменён");}selectedApk=picked;}
+        },false,()->confirmApk(target,token));
+    }
+    private void confirmApk(TvRepository target,int token){
+        final ApkSelection picked=selectedApk;if(picked==null)return;
+        if(repo!=target||token!=generation){picked.close();selectedApk=null;return;}
+        boolean update=state!=null&&state.packages.contains(picked.pkg);
+        String detail=picked.label+"\n"+picked.pkg+"\nВерсия: "+picked.version+" ("+picked.code+")\nРазмер: "+String.format(Locale.ROOT,"%.1f МБ",picked.file.length()/1048576.0)+"\nМинимальный Android API: "+picked.minSdk+"\nSHA-256 файла:\n"+picked.sha256+
+            (picked.pkg.equals(Policy.PROJECTIVY)?"\n\nСертификат совпадает с официальной GitHub-сборкой Projectivy.":"\n\nИсточник APK выбираешь ты; проверка файла не гарантирует безопасность приложения.")+"\n\n"+(update?"Обновление на приставке. Данные установленного приложения сохраняются стандартным установщиком Android.":"Новое приложение на приставке.");
+        final boolean[] started={false};
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Установить на приставку?").setMessage(detail).setNegativeButton("Отмена",null).setPositiveButton("Установить",(d,w)->{
+            if(busy||repo!=target||token!=generation){picked.close();selectedApk=null;status.setText("Соединение изменилось. Выбери файл заново.");return;}
+            started[0]=true;installing=true;progressAt=0;
+            run("Начинаю передачу APK…",()->{
+                try{state=target.installApk(picked.file,picked.pkg,picked.code,picked.minSdk,(sent,total)->installProgress(token,sent,total));piReport=null;}
+                finally{installing=false;picked.close();if(selectedApk==picked)selectedApk=null;}
+            },false,()->status.setText("Установлено: "+picked.label+" "+picked.version+". Версия проверена на приставке."));
+        }).create();
+        dialog.setOnDismissListener(d->{if(!started[0]){picked.close();if(selectedApk==picked)selectedApk=null;}});dialog.show();
+    }
+    private void installProgress(int token,long sent,long total){
+        long now=System.nanoTime();if(sent!=total&&now-progressAt<150000000L)return;progressAt=now;int percent=(int)(sent*100/total);
+        runOnUiThread(()->{if(!destroyed&&busy&&installing&&token==generation){progress.setIndeterminate(false);progress.setMax(100);progress.setProgress(percent);status.setText(sent==total?"APK передан. Android выполняет установку на приставке…":"Передача APK: "+percent+"%");}});
+    }
+    @Override protected void onSaveInstanceState(Bundle saved){
+        capturePosition();saved.putInt("tab",tab);saved.putBoolean("mine",recoveryOnly);saved.putString("query",query);saved.putIntArray("scroll",scrollPositions.clone());saved.putInt("list",listPosition);saved.putInt("top",listTop);saved.putString("ip",ip.getText().toString());saved.putString("port",port.getText().toString());super.onSaveInstanceState(saved);
+    }
+    private void about(){new AlertDialog.Builder(this).setTitle("X96 Локально 0.4.0").setMessage("Настройки, приложения и пульт для домашней Wi-Fi-сети.\n\nНет облака, аккаунтов, аналитики, внешних загрузок и автоматических обновлений. Прежние значения переключателей сохраняются на телефоне. Не удаляй приложение и его данные до восстановления.\n\nОтладка ADB даёт широкие права и не шифруется. После работы выключай сетевую отладку на приставке. Root-прошивка остаётся отдельным источником риска.\n\nВ этой версии подключение вручную по IPv4 и порту; шестизначное сопряжение Android 11+ не поддерживается.\n\nИсходный код: GPL-3.0-only. Правила защиты адаптированы из Tellyscope с атрибуцией CleanYourTV (MIT). Независимый проект.").setPositiveButton("Понятно",null).show();}
     @Override protected void onDestroy(){destroyed=true;disconnect();worker.shutdownNow();super.onDestroy();}
 }

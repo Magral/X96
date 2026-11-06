@@ -28,19 +28,50 @@ public final class AdbClient implements TvShell {
     public synchronized String shellLong(String command) throws Exception {
         return execute(command,180000,180000);
     }
-    private String execute(String command,int readTimeout,int totalTimeout) throws Exception {
-        checkCancelled();
-        String marker="X96_EXIT_"+UUID.randomUUID().toString().replace("-","")+":";
-        String wrapped=command+"; printf '\\n"+marker+"%s\\n' \"$?\"";
-        Socket s=sockets.create();live=s;
-        try {
+    /** Standard Android streamed install. No root, downgrade, permission grant or signature bypass. */
+    public synchronized void install(InputStream source,long size,ApkInstall.Progress progress) throws Exception {
+        ApkInstall.size(size);checkCancelled();Socket s=sockets.create();live=s;
+        try{
+            int chunk=authenticate(s);s.setSoTimeout(60000);InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();
+            String service="exec:cmd package install -r --user 0 -S "+size+"\0";
+            AdbProtocol.send(out,AdbProtocol.OPEN,1,0,service.getBytes(StandardCharsets.UTF_8));
+            ByteArrayOutputStream result=new ByteArrayOutputStream();long sent=0;int pending=0,remote=0;boolean opened=false;
+            long deadline=System.nanoTime()+300000000000L;
+            while(true){
+                checkCancelled();if(System.nanoTime()>deadline)throw new IOException("Истекло время установки. Проверь состояние приложения на приставке перед повтором.");
+                AdbProtocol.Packet p=AdbProtocol.read(in);if(p.arg1!=1)throw new IOException("Неверный поток установки ADB");
+                if(opened&&p.arg0!=remote)throw new IOException("Поток установки изменился");
+                if(p.command==AdbProtocol.OKAY){
+                    if(opened&&pending==0)throw new IOException("Лишнее подтверждение передачи APK");
+                    remote=p.arg0;opened=true;sent+=pending;pending=0;progress.update(sent,size);
+                    if(sent<size){
+                        int length=(int)Math.min(chunk,size-sent);byte[] block=new byte[length];new DataInputStream(source).readFully(block);
+                        // Do not send a final chunk if the supposedly fixed local file grew.
+                        if(sent+length==size&&source.read()!=-1)throw new IOException("Размер APK изменился; передача остановлена");
+                        AdbProtocol.send(out,AdbProtocol.WRTE,1,remote,block);pending=length;
+                    }
+                }else if(p.command==AdbProtocol.WRTE){
+                    if(!opened)throw new IOException("Данные установки пришли до открытия потока");
+                    if(result.size()+p.data.length>65536)throw new IOException("Ответ установщика слишком большой");
+                    result.write(p.data);AdbProtocol.send(out,AdbProtocol.OKAY,1,remote,new byte[0]);
+                    String text=new String(result.toByteArray(),StandardCharsets.UTF_8);
+                    if(text.contains("Failure ["))throw ApkInstall.failure(text);
+                }else if(p.command==AdbProtocol.CLSE){
+                    AdbProtocol.send(out,AdbProtocol.CLSE,1,p.arg0,new byte[0]);
+                    String response=new String(result.toByteArray(),StandardCharsets.UTF_8);ApkInstall.success(response);
+                    if(sent!=size||pending!=0)throw new IOException("Не подтверждена полная передача APK. Проверь установленную версию на приставке.");return;
+                }else throw new IOException("Неожиданный ответ потока установки");
+            }
+        }finally{try{s.close();}finally{live=null;}}
+    }
+    private int authenticate(Socket s) throws Exception {
             checkCancelled();s.connect(new InetSocketAddress(InetAddress.getByAddress(address),port),5000);s.setSoTimeout(65000);s.setTcpNoDelay(true);
             InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();
-            AdbProtocol.send(out,AdbProtocol.CNXN,0x01000000,4096,"host::\0".getBytes(StandardCharsets.UTF_8));
-            boolean signed=false,sentPublic=false,connected=false;
+            AdbProtocol.send(out,AdbProtocol.CNXN,0x01000000,65536,"host::\0".getBytes(StandardCharsets.UTF_8));
+            boolean signed=false,sentPublic=false,connected=false;int packetSize=4096;
             for(int i=0;i<8;i++) {
                 AdbProtocol.Packet p=AdbProtocol.read(in);
-                if(p.command==AdbProtocol.CNXN){connected=true;break;}
+                if(p.command==AdbProtocol.CNXN){if(p.arg1<1||p.arg1>AdbProtocol.MAX_PAYLOAD)throw new IOException("Неверный размер пакета ADB");packetSize=Math.min(65536,p.arg1);connected=true;break;}
                 if(p.command!=AdbProtocol.AUTH||p.arg0!=1||p.data.length!=20)throw new IOException("Неожиданный ответ ADB");
                 if(!signed) {
                     byte[] prefix={0x30,0x21,0x30,0x09,0x06,0x05,0x2b,0x0e,0x03,0x02,0x1a,0x05,0x00,0x04,0x14};
@@ -53,6 +84,16 @@ public final class AdbClient implements TvShell {
                 } else throw new IOException("Приставка отклонила ключ. Подтверди отладку на ТВ.");
             }
             if(!connected)throw new IOException("Нет подтверждения ADB");
+        return packetSize;
+    }
+    private String execute(String command,int readTimeout,int totalTimeout) throws Exception {
+        checkCancelled();
+        String marker="X96_EXIT_"+UUID.randomUUID().toString().replace("-","")+":";
+        String wrapped=command+"; printf '\\n"+marker+"%s\\n' \"$?\"";
+        Socket s=sockets.create();live=s;
+        try {
+            authenticate(s);
+            InputStream in=s.getInputStream();OutputStream out=s.getOutputStream();
             checkCancelled();s.setSoTimeout(readTimeout);
             AdbProtocol.send(out,AdbProtocol.OPEN,1,0,("shell:"+wrapped+"\0").getBytes(StandardCharsets.UTF_8));
             ByteArrayOutputStream result=new ByteArrayOutputStream();int remote=0;boolean opened=false,closed=false;
