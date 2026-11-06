@@ -46,7 +46,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(14),dp(8),dp(14),dp(4));root.setBackgroundColor(BG);setContentView(root);
         root.setOnApplyWindowInsetsListener((v,insets)->{root.setPadding(dp(14),Math.max(dp(8),insets.getSystemWindowInsetTop()),dp(14),Math.max(dp(4),insets.getSystemWindowInsetBottom()));return insets;});
-        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.6.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout heading=row();LinearLayout title=new LinearLayout(this);title.setOrientation(1);title.addView(text("X96 Локально",24,TEXT));title.addView(text("Удобные настройки приставки · 0.7.0",12,MUTED));heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         heading.addView(button("?",()->about(),false),new LinearLayout.LayoutParams(dp(44),dp(48)));root.addView(heading);
         LinearLayout connection=card(root);device=text("Подключение к приставке",16,TEXT);connection.addView(device);
         connectFields=new LinearLayout(this);connectFields.setOrientation(1);LinearLayout address=row();ip=edit("IP приставки");port=edit("Порт");

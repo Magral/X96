@@ -1,11 +1,11 @@
 {
-  "version": "0.6.0",
-  "versionCode": 6,
+  "version": "0.7.0",
+  "versionCode": 7,
   "applicationId": "ru.x96.local",
-  "apk_sha256": "bd83c8e5600f636469b381e163cd2c27e51facce6f12c7cf05150b711d8a053a",
+  "apk_sha256": "7c6cc12a295553d1a555df2e814cd72600847f7787697c0cad3afbb756dd7dab",
   "certificate_sha256": "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f",
   "same_signer_as_prior_versions": true,
-  "date": "2026-11-06",
+  "date": "2026-11-07",
   "core_checks_passed": 78,
   "repository_checks_passed": 59,
   "projectivy_root_checks_passed": 52,
@@ -16,5 +16,7 @@
   "installer": "standard ADB streamed install, confirmed file only, no downgrade or signature bypass",
   "health_checks_passed": 34,
   "optimization_checks_passed": 58,
-  "total_checks_passed": 376
+  "total_checks_passed": 424,
+  "snapshot_checks_passed": 48,
+  "refresh_adb_sessions": 2
 }

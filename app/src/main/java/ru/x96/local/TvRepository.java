@@ -12,8 +12,6 @@ public final class TvRepository {
     private final RecoveryStore journal;
     private String identity="";
     private ProjectivyTools piTools;
-    private static final String QUERY_HOME="cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME";
-    private static final String RESOLVE_HOME="cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME";
     public static final class State {
         public String model,android,uid,home;
         public Set<String> packages,disabled,homes,owned,system;
@@ -24,25 +22,31 @@ public final class TvRepository {
     }
     public TvRepository(TvShell client,RecoveryStore recovery) {adb=client;journal=recovery;}
     private String run(String c) throws Exception {return adb.shell(c);}
-    private static Set<String> packages(String output) {
-        Set<String> result=new TreeSet<>();for(String line:output.split("\n"))if(line.startsWith("package:")){String p=line.substring(8).trim();if(Policy.validPackage(p))result.add(p);}return result;
+    private static Set<String> packages(String output) throws IOException {
+        Set<String> result=new TreeSet<>();for(String line:output.split("\n")){
+            line=line.trim();if(line.isEmpty())continue;
+            if(!line.startsWith("package:")||!Policy.validPackage(line.substring(8)))throw new IOException("Список приложений получен с ошибкой. Обнови данные перед изменениями.");
+            result.add(line.substring(8));
+        }return result;
     }
     public static List<String> components(String output) {
         Set<String> result=new TreeSet<>();for(String line:output.split("\n")){String c=line.trim();if(Policy.validComponent(c))result.add(c);}return new ArrayList<>(result);
     }
     public State refresh() throws Exception {
-        String ident=run("getprop ro.serialno; getprop ro.boot.serialno; settings get secure android_id; getprop ro.product.device");
+        Map<TvSnapshot.Field,String> snapshot=TvSnapshot.read(adb);
+        String ident=snapshot.get(TvSnapshot.Field.ID);
         if(ident.replace("null","").replace("unknown","").trim().isEmpty())throw new IOException("Не удалось определить приставку");
         String next=hex(MessageDigest.getInstance("SHA-256").digest(ident.getBytes(StandardCharsets.UTF_8)));
         if(!identity.isEmpty()&&!identity.equals(next))throw new IOException("По этому адресу другая приставка. Подключись заново.");
         identity=next;
-        State s=new State();s.model=run("getprop ro.product.model");s.android=run("getprop ro.build.version.release");s.uid=run("id -u");
-        s.packages=packages(run("pm list packages --user 0"));if(s.packages.isEmpty())throw new IOException("Приставка не вернула список приложений");
-        s.disabled=packages(run("pm list packages -d --user 0"));s.system=packages(run("pm list packages -s --user 0"));
+        State s=new State();s.model=snapshot.get(TvSnapshot.Field.MODEL);s.android=snapshot.get(TvSnapshot.Field.ANDROID);s.uid=snapshot.get(TvSnapshot.Field.UID);
+        s.packages=packages(snapshot.get(TvSnapshot.Field.PACKAGES));if(s.packages.isEmpty())throw new IOException("Приставка не вернула список приложений");
+        s.disabled=packages(snapshot.get(TvSnapshot.Field.DISABLED));s.system=packages(snapshot.get(TvSnapshot.Field.SYSTEM));
         if(s.system.isEmpty())throw new IOException("Не удалось определить системные приложения");
-        s.homeComponents=components(run(QUERY_HOME));s.homes=new HashSet<>();
+        if(!s.packages.containsAll(s.system)||!s.packages.containsAll(s.disabled))throw new IOException("Списки приложений изменились во время чтения. Обнови данные ещё раз.");
+        s.homeComponents=components(snapshot.get(TvSnapshot.Field.HOMES));s.homes=new HashSet<>();
         for(String c:s.homeComponents)s.homes.add(Policy.packageOf(c));
-        List<String> current=components(run(RESOLVE_HOME));s.home=current.size()==1?current.get(0):"";
+        List<String> current=components(snapshot.get(TvSnapshot.Field.HOME));s.home=current.size()==1?current.get(0):"";
         s.homesKnown=!s.home.isEmpty()&&s.homeComponents.contains(s.home)&&!s.homes.isEmpty();if(!s.home.isEmpty())s.homes.add(Policy.packageOf(s.home));
         s.owned=new HashSet<>(journal.disabled(identity));s.homeSaved=journal.home(identity)!=null;
         Map<Option,String[]> settings;try{settings=Option.parseAll(run(Option.readAllCommand()));}catch(Exception e){settings=Collections.emptyMap();}

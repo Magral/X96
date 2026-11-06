@@ -12,6 +12,7 @@ public final class OptimizationTests {
         final List<String> writes=new ArrayList<>();String api="30",uid="0",answer="Success",free="40000000",activity=COMP;boolean longCall,failCompile,su;
         public String shellLong(String c) throws Exception {longCall=true;return shell(c);}
         public String shell(String c) throws Exception {
+            if(c.startsWith("printf 'X96_READ_"))return SnapshotTests.respond(c,this);
             if(c.equals("id -u"))return uid;
             if(c.equals("su -c 'id -u'"))return su?"0":"2000";
             if(c.equals("getprop ro.build.version.sdk"))return api;

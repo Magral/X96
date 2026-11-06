@@ -24,6 +24,7 @@ public final class RepositoryTests {
         final Map<String,String> settings=new HashMap<>();boolean failSetting=false;
         FakeTv(MemoryStore j){journal=j;for(Option o:Option.values())for(String k:o.keys)settings.put(k,"1");}
         public String shell(String c) throws Exception {
+            if(c.startsWith("printf 'X96_READ_"))return SnapshotTests.respond(c,this);
             if(c.startsWith("printf 'X96_OPTION_")){StringJoiner out=new StringJoiner("\n");for(Option o:Option.values()){out.add("X96_OPTION_"+o.name());out.add(shell(o.readCommand()));}return out.toString();}
             if(c.startsWith("settings --user 0 get ")){StringJoiner out=new StringJoiner("\n");for(String part:c.split("; ")){String[] words=part.split(" ");out.add(settings.getOrDefault(words[5],"null"));}return out.toString();}
             if(c.startsWith("settings --user 0 put ")||c.startsWith("settings --user 0 delete ")){String[] w=c.split(" ");check(!journal.snapshots.isEmpty(),"settings journal BEFORE mutation");settings.put(w[5],w[3].equals("delete")?"null":w[6]);mutations++;if(failSetting)throw new IOException("setting interrupted");return "";}
