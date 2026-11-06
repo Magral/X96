@@ -107,11 +107,11 @@ final class ProjectivyTools {
     static final class Report {
         final String measuredAt=java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT,java.text.DateFormat.MEDIUM).format(new java.util.Date());
         DeviceHealth health=DeviceHealth.parse("");
-        String identity="",comparison="";
+        String identity="",comparison="",hardware="";
         String version="не определена",firmware="",root="не проверен",home="",advice="",pid="не запущен",memory="",build="",board="",wifi="не определён",temperature="недоступна";
         boolean intercept,homeTask,rootReady,interceptSaved,prioritySaved,oldVersion;
         int sdk;
-        String text(){return "X96 Локально 0.10.0\nЗамер: "+measuredAt+"\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+health.text()+"\n"+memory+"\n\n"+advice+(comparison.isEmpty()?"":"\n\nПроверка первого нажатия:\n"+comparison);}
+        String text(){return "X96 Локально 0.11.0\nЗамер: "+measuredAt+"\nПлата: "+board+"\nСборка: "+build+"\nПрошивка: "+firmware+"\nAndroid API: "+sdk+"\nRoot: "+root+"\nМодули Wi-Fi (если видны): "+wifi+"\nТемпература: "+temperature+"\nProjectivy: "+version+"\nСистемный HOME: "+home+"\nHOME-задача Projectivy обнаружена: "+homeTask+"\nПерехват Projectivy: "+intercept+"\nПроцесс: "+pid+"\n"+health.text()+"\n"+hardware+"\n"+memory+"\n\n"+advice+(comparison.isEmpty()?"":"\n\nПроверка первого нажатия:\n"+comparison);}
     }
     static String processIdentity(String pid,String raw){
         if(!pid.matches("[1-9][0-9]{0,7}"))return "";
@@ -146,6 +146,7 @@ final class ProjectivyTools {
         String wifi=optional("ls /sys/module | grep -E '^(dhd|bcmdhd|brcmfmac|8189|8723|8822|8852|ssv|uwe|aic|rtk)' || true");if(!wifi.trim().isEmpty())r.wifi=safe(wifi);
         String[] thermal=optional("cat /sys/class/thermal/thermal_zone0/type 2>/dev/null; cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null").split("\\r?\\n");
         if(thermal.length==2&&thermal[1].trim().matches("-?[0-9]{1,6}")){double n=Double.parseDouble(thermal[1].trim());if(Math.abs(n)>200)n/=1000;if(n>=-40&&n<=150)r.temperature=safe(thermal[0])+": "+String.format(Locale.ROOT,"%.1f °C",n);}
+        r.hardware=HardwareReport.parse(optional(HardwareReport.command()));
         r.interceptSaved=hasInterceptRecord();r.prioritySaved=hasPriorityRecord();
         if(r.rootReady)try{Process p=process();if(p!=null)r.memory+="\nПриоритет текущего процесса (oom_score_adj): "+p.score;}catch(Exception ignored){}
         r.advice=(r.oldVersion?"Сначала обнови Projectivy до 4.73 или новее: разработчик исправил похожий HOME-сбой в 4.73.\n":"")+

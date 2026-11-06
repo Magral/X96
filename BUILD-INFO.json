@@ -1,8 +1,8 @@
 {
-  "version": "0.10.0",
-  "versionCode": 10,
+  "version": "0.11.0",
+  "versionCode": 11,
   "applicationId": "ru.x96.local",
-  "apk_sha256": "12104ba4b9d59fcc996014ba70b29ec5bb191bc49253b2b0033c2b29d487a108",
+  "apk_sha256": "f79effea021b029a68920e58fa3ea35a0ea5a8b96b19cd300d8fbd1b19a20815",
   "certificate_sha256": "6f629548392328aaaa3b2f36e33ddff028277bd1270ed0000152d24fd4f3f13f",
   "same_signer_as_prior_versions": true,
   "date": "2026-11-07",
@@ -16,9 +16,10 @@
   "installer": "standard ADB streamed install, confirmed file only, no downgrade or signature bypass",
   "health_checks_passed": 34,
   "optimization_checks_passed": 58,
-  "total_checks_passed": 440,
+  "total_checks_passed": 450,
   "snapshot_checks_passed": 48,
   "refresh_adb_sessions": 2,
   "ui_device_tested": false,
-  "session_checks_passed": 13
+  "session_checks_passed": 13,
+  "hardware_checks_passed": 10
 }
